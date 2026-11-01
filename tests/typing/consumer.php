@@ -17,6 +17,7 @@ use Klaracase\Exception\InsufficientCreditsException;
 use Klaracase\Exception\KlaracaseException;
 use Klaracase\Exception\KlaracaseThrowable;
 use Klaracase\Exception\RateLimitException;
+use Klaracase\Exception\TokenLimitReachedException;
 use Klaracase\Klaracase;
 use Klaracase\RequestOptions;
 use Klaracase\Response\Finding;
@@ -81,6 +82,8 @@ function secondsToWait(Klaracase $client): int
         $client->norms->get('§ 535 BGB');
     } catch (RateLimitException $e) {
         return $e->isRetryable() ? ($e->retryAfterSeconds ?? 60) : 0;
+    } catch (TokenLimitReachedException) {
+        return 0; // a key limit: stop and tell your user, a retry cannot help
     } catch (InsufficientCreditsException $e) {
         return ($e->balance ?? 0) > 0 ? 1 : 0;
     } catch (KlaracaseException $e) {
@@ -88,6 +91,14 @@ function secondsToWait(Klaracase $client): int
     }
 
     return 0;
+}
+
+/**
+ * @return int|null The API budget left in euro cents, null when the organization has none.
+ */
+function budgetInCents(Klaracase $client): ?int
+{
+    return $client->decisions->search('Untreue')->credits?->api_budget?->cents;
 }
 
 function describe(KlaracaseThrowable $e): string

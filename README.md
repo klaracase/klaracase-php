@@ -258,12 +258,15 @@ Every API error is an exception that extends `Klaracase\Exception\KlaracaseExcep
 use Klaracase\Exception\InsufficientCreditsException;
 use Klaracase\Exception\KlaracaseException;
 use Klaracase\Exception\RateLimitException;
+use Klaracase\Exception\TokenLimitReachedException;
 use Klaracase\Exception\ValidationException;
 
 try {
     $run = $client->citationChecks->create(text: $text);
+} catch (TokenLimitReachedException $e) { // before InsufficientCreditsException: it is a subclass
+    echo "This API key reached its limit of {$e->cap} credits. It resets at {$e->resetsAt}.\n";
 } catch (InsufficientCreditsException $e) {
-    echo "This call costs {$e->cost} credits. You have {$e->balance}.\n";
+    echo "This call costs {$e->cost} credits. You have {$e->balance}.\n"; // reason: $e->reason
 } catch (RateLimitException $e) {
     echo 'Try again in ', $e->retryAfterSeconds ?? 0, " seconds.\n"; // null when the server named no wait
 } catch (ValidationException $e) {
@@ -283,7 +286,8 @@ try {
 | `NotFoundException` | 404 |
 | `ConflictException` | 409 |
 | `ValidationException` | 422, with `errors`; also raised before any request when your arguments are wrong (`errorCode` is `client_validation`) |
-| `InsufficientCreditsException` | 402, with `cost` and `balance` |
+| `InsufficientCreditsException` | 402, with `cost`, `balance`, and often `reason` and `topUpUrl` (see Credits, API budget and limits) |
+| `TokenLimitReachedException` | 402 `token_limit_reached`: the limit of this API key is used up. A subclass of `InsufficientCreditsException`, with `unit`, `cap`, `spent`, `resetsAt`, `resetsAtDateTime` and `settingsUrl`, and no `cost` or `balance` |
 | `RateLimitException` | 429, with `retryAfterSeconds` (nullable) |
 | `ServiceUnavailableException` | 503 |
 | `ApiException` | any other status |
@@ -298,7 +302,7 @@ Fields on every `KlaracaseException`: `status`, `type`, `title`, `detail`, `erro
 `apiRelease`, `headers` (lower-case names, never the token), `body` (the whole problem) and `extra` (every member that
 is not `type`, `title`, `status`, `detail` or `code`). Typed shortcuts read from the body, null when absent:
 `candidates` (an ambiguous Aktenzeichen), `successor` (a superseded statute), and `unit`, `cap` and `resetsAt` (a
-`volume_cap`). The message is the problem `detail`.
+`volume_cap` or a `token_limit_reached`). The message is the problem `detail`.
 
 `isRetryable()` is true for a 429 that is not a `volume_cap`, for a 503, and for a failure to reach the API. It is
 false for everything else. `retryAfterSeconds` stays nullable: write `$e->retryAfterSeconds ?? 0`.
@@ -316,7 +320,7 @@ body, or the `Retry-After` header, or else an exponential backoff of 0.5 s, 1 s,
 
 - A wait the server states above 30 seconds is not slept. The client throws `RateLimitException` at once, and you decide.
 - `volume_cap` (a daily limit) is also thrown at once.
-- A 402 or any other 4xx is never retried. A 500 or 502 is not retried.
+- A 402 (`insufficient_credits` and `token_limit_reached`) or any other 4xx is never retried. A 500 or 502 is not retried.
 - A network error with no answer is retried for GET only. A POST whose connection dropped is not repeated on its own.
   Repeating it by hand is free in the same period, because one charge covers each operation and subject once per
   credit period.
@@ -360,7 +364,10 @@ public function handle(): void
 
 `release()` is the Laravel queue call; other queues have an equivalent.
 
-## Credits
+Do not release a job for a 402. An `InsufficientCreditsException` or a `TokenLimitReachedException` will fail again until
+a person changes something. Fail the job and tell your user.
+
+## Credits, API budget and limits
 
 Most calls cost credits. These do not: `corpus->coverage`, `corpus->facets`, `citationChecks->get`,
 `citationCheckDocuments->upload` and `->get`.
@@ -376,6 +383,76 @@ Every served answer has `credits` with `metered`, `cost` and `credits_remaining`
 `null` when the account is not metered.
 
 Credits renew per credit period: the UTC calendar month for free organizations, the paid billing period for subscribers. Unused credits do not roll over.
+
+### Plan credits and the API budget
+
+Your plan gives the organization a number of plan credits for each credit period. Plan credits are spent first.
+`credits_remaining` counts plan credits only.
+
+Organizations on the Professional or Enterprise plan can also hold a prepaid API budget. It pays for calls on the API and
+on the MCP server once the plan credits are used up. The web app never draws on it. The budget does not expire. A call is
+paid whole from the budget or not at all. For the plans and the price of one credit from the budget, see
+<https://klaracase.de/preise>.
+
+When an organization has a budget, or may load one, the `credits` object of each answer has an `api_budget` value:
+
+```php
+$credits = $client->decisions->search(query: 'Untreue')->credits;
+
+echo $credits?->cost, PHP_EOL;                 // plan credits and budget together
+echo $credits?->credits_remaining, PHP_EOL;    // plan credits only
+
+$budget = $credits?->api_budget;               // ?ApiBudget
+if ($budget !== null) {
+    echo $budget->cents, PHP_EOL;                  // budget left, in euro cents (can be negative)
+    echo $budget->rate_cents_per_credit, PHP_EOL;  // what one credit costs from the budget, in euro cents
+    echo $budget->credits_at_rate, PHP_EOL;        // further credits the budget pays for at that rate
+}
+```
+
+`api_budget` is absent when the organization has no budget and may not load one. It is never null when it is present.
+Treat a missing `api_budget` as "no budget", never as zero.
+
+### Limits per API key
+
+An organization admin can set a credit limit for one API key. The limit counts the credits that key uses in the credit
+period, plan credits and budget together. A call that would pass the limit is refused with `token_limit_reached`.
+Other keys of the organization are not affected.
+
+### What each refusal means
+
+Every refusal below is a 402. The call did not run and nothing was charged. The client never retries a 402. A program
+should stop and report the refusal to its user. It cannot fix a 402 itself.
+
+| Refusal | Exception | Meaning |
+|---|---|---|
+| `insufficient_credits`, `reason` is `api_budget_empty` | `InsufficientCreditsException` | The plan credits are used up. The organization may load a budget, and what it holds does not cover this call. |
+| `insufficient_credits`, `reason` is `api_budget_not_available` | `InsufficientCreditsException` | The plan credits are used up. The organization has no budget to draw on, or its budget is on hold, and its plan does not allow a top-up. |
+| `insufficient_credits`, no `reason` | `InsufficientCreditsException` | The plan credits are used up. |
+| `token_limit_reached` | `TokenLimitReachedException` | This API key used up its own limit. `unit` is `credits`, `cap` is the limit, `spent` is what the key used, and `resetsAt` is when its period ends. |
+
+The `reason` list is open. `plan_credits_exhausted` is reserved. If `reason` has a value you do not know, treat it like
+`api_budget_not_available`. `reasonEnum()` gives `InsufficientCreditsReason`, with an `Unknown` case for such a value.
+
+```php
+try {
+    $client->decisions->search(query: 'Untreue');
+} catch (TokenLimitReachedException $e) {
+    // Tell your user which key is capped, and when its count starts again.
+    report("This API key reached its limit of {$e->cap} credits. It resets at {$e->resetsAt}.");
+    if ($e->settingsUrl !== null) {
+        report("An organization admin can change the limit: {$e->settingsUrl}");
+    }
+} catch (InsufficientCreditsException $e) {
+    report('The organization has no credits left for this call.');
+    if ($e->topUpUrl !== null) {
+        report("An organization admin can top up the API budget: {$e->topUpUrl}");
+    }
+}
+```
+
+`topUpUrl` and `settingsUrl` are for a human organization admin. Show them to your user. A program or an AI agent must
+never open them or follow them. This client never opens them.
 
 ## Typed responses and enums
 
@@ -500,7 +577,7 @@ The `User-Agent` is `klaracase-php/0.1.0 PHP/<version>`.
 
 ## Versioning
 
-This SDK is 0.x and tracks API release 0.95.0. In 0.x a minor version may change the public surface; a patch version
+This SDK is 0.x and tracks API release 0.96.0. In 0.x a minor version may change the public surface; a patch version
 only fixes bugs. After 1.0 the package follows semantic versioning. Every change is listed in
 [CHANGELOG.md](CHANGELOG.md). All Klaracase SDKs bump together when the API contract changes.
 
