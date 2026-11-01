@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: PHP ${{ matrix.php }}
@@ -26,14 +30,33 @@ jobs:
           coverage: none
           tools: composer:v2
 
+      - name: Validate composer.json
+        run: composer validate --strict
+
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
-      - name: Static analysis
-        run: composer analyse
+      - name: Audit dependencies
+        run: composer audit
 
-      - name: Code style
-        run: composer lint
+      - name: Check (code style, static analysis, tests)
+        run: composer check
+
+  lowest:
+    name: Lowest dependencies (PHP 8.2)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install the lowest allowed versions
+        run: composer update --prefer-lowest --prefer-stable --no-interaction --no-progress --prefer-dist
 
       - name: Tests
         run: composer test
