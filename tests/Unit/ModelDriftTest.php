@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Klaracase\Tests\Unit;
 
 use Generator;
+use Klaracase\Response\ApiBudget;
 use Klaracase\Response\CitationCheck;
 use Klaracase\Response\CitationCheckDocument;
 use Klaracase\Response\CorpusCoverage;
@@ -110,7 +111,7 @@ final class ModelDriftTest extends TestCase
     {
         $bodies = iterator_to_array(self::goldenBodies());
 
-        $this->assertCount(12 + 8 + 12, $bodies);
+        $this->assertCount(12 + 9 + 12, $bodies);
     }
 
     /**
@@ -161,6 +162,38 @@ final class ModelDriftTest extends TestCase
 
         $this->assertCount(2, DriftGuard::extras($model));
         $this->assertTrue(DriftGuard::jsonRoundTrips($model, $body));
+    }
+
+    public function testTheApiBudgetIsTypedAbsentWhenTheServerOmitsItAndKeepsItsUnknownKeys(): void
+    {
+        $with = Credits::fromArray([
+            'metered' => true,
+            'cost' => 1,
+            'credits_remaining' => 0,
+            'api_budget' => ['cents' => 4991, 'rate_cents_per_credit' => 9, 'credits_at_rate' => 554, 'on_hold' => false],
+        ]);
+
+        $this->assertInstanceOf(ApiBudget::class, $with->api_budget);
+        $this->assertSame(4991, $with->api_budget->cents);
+        $this->assertSame(9, $with->api_budget->rate_cents_per_credit);
+        $this->assertSame(554, $with->api_budget->credits_at_rate);
+        $this->assertSame(['on_hold' => false], $with->api_budget->extra);
+        $this->assertSame(0, $with->credits_remaining, 'the plan credits never count the budget');
+        $this->assertSame(['cents' => 4991, 'rate_cents_per_credit' => 9, 'credits_at_rate' => 554, 'on_hold' => false], $with->toArray()['api_budget']);
+
+        $without = Credits::fromArray(['metered' => true, 'cost' => 1, 'credits_remaining' => 40]);
+
+        $this->assertNull($without->api_budget, 'absent is not an invented zero');
+        $this->assertArrayNotHasKey('api_budget', $without->toArray());
+        $this->assertStringNotContainsString('api_budget', json_encode($without, JSON_THROW_ON_ERROR));
+    }
+
+    public function testAZeroBudgetIsStillABudget(): void
+    {
+        $credits = Credits::fromArray(['metered' => true, 'cost' => 1, 'credits_remaining' => 0, 'api_budget' => ['cents' => -30, 'rate_cents_per_credit' => 9, 'credits_at_rate' => 0]]);
+
+        $this->assertSame(-30, $credits->api_budget?->cents);
+        $this->assertSame(0, $credits->api_budget->credits_at_rate);
     }
 
     public function testTheGuardFailsWhenAModelLacksAKey(): void
