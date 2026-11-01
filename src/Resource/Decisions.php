@@ -59,7 +59,7 @@ final class Decisions extends AbstractResource
             'bridge' => $bridge,
         ]);
 
-        return new DecisionSearchResult($body, $meta);
+        return DecisionSearchResult::fromArray($body, $meta);
     }
 
     /**
@@ -91,7 +91,7 @@ final class Decisions extends AbstractResource
             'date' => $date,
         ]);
 
-        return new Decision($body, $meta);
+        return Decision::fromArray($body, $meta);
     }
 
     /**
@@ -120,6 +120,6 @@ final class Decisions extends AbstractResource
             'page' => $page,
         ]);
 
-        return new DecisionCitations($body, $meta);
+        return DecisionCitations::fromArray($body, $meta);
     }
 }

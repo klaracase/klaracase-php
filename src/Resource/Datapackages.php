@@ -38,6 +38,6 @@ final class Datapackages extends AbstractResource
 
         [$body, $meta] = $this->transport->send('POST', '/datapackages', json: $json);
 
-        return new Datapackage($body, $meta);
+        return Datapackage::fromArray($body, $meta);
     }
 }

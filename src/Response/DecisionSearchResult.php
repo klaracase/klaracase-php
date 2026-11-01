@@ -4,123 +4,133 @@ declare(strict_types=1);
 
 namespace Klaracase\Response;
 
+use ArrayAccess;
+use Klaracase\Enum\Confidence;
+use Klaracase\Enum\Mode;
+
 /**
- * Answer of GET /decisions/search.
+ * Answer of GET /decisions/search. Costs 1 credit.
  *
- * `mode` values: keyword, semantic, hybrid. `top_confidence` is a plain string such as `high`.
+ * @implements ArrayAccess<string, mixed>
  */
-final readonly class DecisionSearchResult extends Response
+final readonly class DecisionSearchResult implements Model, ArrayAccess
 {
-    protected const KEYS = [
-        'results',
-        'payload_truncated',
-        'total_available',
-        'total_available_basis',
-        'candidate_pool',
-        'pool_exhaustive',
-        'truncated',
-        'page',
-        'limit',
-        'mode',
-        'frequently_cited_by_results',
-        'query_expansion',
-        'top_confidence',
-    ];
+    use Wire;
+    use ReadsAsArray;
 
     /**
-     * @var list<array{id?: string, aktenzeichen?: string, court?: string, date?: string, document_type?: string, title?: string, snippet?: string, snippets?: list<array<string, mixed>>, chunk_title?: string|null, rn_range?: string|null, fundstelle?: string|null, fortgeltung_checked?: bool, fortgeltung_note?: string, confidence?: string}>|null
+     * @return list<string>
      */
-    public ?array $results;
-
-    /**
-     * @var bool|null
-     */
-    public ?bool $payload_truncated;
-
-    /**
-     * @var array{value?: int, is_floor?: bool}|null
-     */
-    public ?array $total_available;
-
-    /**
-     * @var string|null
-     */
-    public ?string $total_available_basis;
-
-    /**
-     * @var int|null
-     */
-    public ?int $candidate_pool;
-
-    /**
-     * @var bool|null
-     */
-    public ?bool $pool_exhaustive;
-
-    /**
-     * @var bool|null
-     */
-    public ?bool $truncated;
-
-    /**
-     * @var int|null
-     */
-    public ?int $page;
-
-    /**
-     * @var int|null
-     */
-    public ?int $limit;
-
-    /**
-     * @var string|null
-     */
-    public ?string $mode;
-
-    /**
-     * @var list<mixed>|null
-     */
-    public ?array $frequently_cited_by_results;
-
-    /**
-     * What the server added to the query; `status` is for example `abstained`.
-     *
-     * @var array{status?: string, applied?: bool, reason?: string, note?: string}|null
-     */
-    public ?array $query_expansion;
-
-    /**
-     * @var string|null
-     */
-    public ?string $top_confidence;
-
-    /**
-     * @param array<array-key, mixed> $raw The decoded JSON object.
-     */
-    public function __construct(array $raw, ResponseMeta $meta)
+    private static function mapKeys(): array
     {
-        parent::__construct($raw, $meta);
+        return ['ignored_parameters'];
+    }
 
-        /** @var list<array{id?: string, aktenzeichen?: string, court?: string, date?: string, document_type?: string, title?: string, snippet?: string, snippets?: list<array<string, mixed>>, chunk_title?: string|null, rn_range?: string|null, fundstelle?: string|null, fortgeltung_checked?: bool, fortgeltung_note?: string, confidence?: string}>|null $value */
-        $value = Fields::array($raw, 'results');
-        $this->results = $value;
-        $this->payload_truncated = Fields::bool($raw, 'payload_truncated');
-        /** @var array{value?: int, is_floor?: bool}|null $value */
-        $value = Fields::array($raw, 'total_available');
-        $this->total_available = $value;
-        $this->total_available_basis = Fields::string($raw, 'total_available_basis');
-        $this->candidate_pool = Fields::int($raw, 'candidate_pool');
-        $this->pool_exhaustive = Fields::bool($raw, 'pool_exhaustive');
-        $this->truncated = Fields::bool($raw, 'truncated');
-        $this->page = Fields::int($raw, 'page');
-        $this->limit = Fields::int($raw, 'limit');
-        $this->mode = Fields::string($raw, 'mode');
-        /** @var list<mixed>|null $value */
-        $value = Fields::array($raw, 'frequently_cited_by_results');
-        $this->frequently_cited_by_results = $value;
-        /** @var array{status?: string, applied?: bool, reason?: string, note?: string}|null $value */
-        $value = Fields::array($raw, 'query_expansion');
-        $this->query_expansion = $value;
-        $this->top_confidence = Fields::string($raw, 'top_confidence');
+    /**
+     * @param list<DecisionHit>|null $results
+     * @param list<mixed>|null $frequently_cited_by_results
+     * @param array<string, mixed>|null $ignored_parameters
+     * @param array<string, mixed> $extra Keys this class does not model; kept so they survive a round trip.
+     * @param list<string> $nulls Modelled keys that arrived as an explicit JSON null.
+     */
+    public function __construct(
+        public ?array $results = null,
+        public ?bool $payload_truncated = null,
+        public ?Count $total_available = null,
+        public ?string $total_available_basis = null,
+        public ?int $candidate_pool = null,
+        public ?bool $pool_exhaustive = null,
+        public ?bool $truncated = null,
+        public ?int $page = null,
+        public ?int $limit = null,
+        public ?string $mode = null,
+        public ?array $frequently_cited_by_results = null,
+        public ?QueryExpansion $query_expansion = null,
+        public ?string $top_confidence = null,
+        public ?string $api_version = null,
+        public ?string $changelog_url = null,
+        public ?Credits $credits = null,
+        public ?array $ignored_parameters = null,
+        public ResponseMeta $meta = new ResponseMeta(200, null, 0.0),
+        public array $extra = [],
+        public array $nulls = [],
+    ) {
+    }
+
+    /**
+     * @param array<array-key, mixed> $data A decoded JSON object.
+     */
+    public static function fromArray(array $data, ?ResponseMeta $meta = null): self
+    {
+        $r = new Reader($data);
+
+        return new self(
+            results: $r->listOf('results', DecisionHit::class),
+            payload_truncated: $r->bool('payload_truncated'),
+            total_available: $r->object('total_available', Count::class),
+            total_available_basis: $r->string('total_available_basis'),
+            candidate_pool: $r->int('candidate_pool'),
+            pool_exhaustive: $r->bool('pool_exhaustive'),
+            truncated: $r->bool('truncated'),
+            page: $r->int('page'),
+            limit: $r->int('limit'),
+            mode: $r->string('mode'),
+            frequently_cited_by_results: $r->list('frequently_cited_by_results'),
+            query_expansion: $r->object('query_expansion', QueryExpansion::class),
+            top_confidence: $r->string('top_confidence'),
+            api_version: $r->string('api_version'),
+            changelog_url: $r->string('changelog_url'),
+            credits: $r->object('credits', Credits::class),
+            ignored_parameters: $r->map('ignored_parameters'),
+            meta: $meta ?? new ResponseMeta(200, null, 0.0),
+            extra: $r->rest(),
+            nulls: $r->nulls(),
+        );
+    }
+
+    /**
+     * `$mode` as an enum: null when absent, null when the value is new to this SDK version. The raw string stays on the property.
+     */
+    public function modeEnum(): ?Mode
+    {
+        return Mode::fromWire($this->mode);
+    }
+
+    /**
+     * `$top_confidence` as an enum: null when absent, Unknown when the value is new to this SDK version. The raw string stays on the property.
+     */
+    public function topConfidenceEnum(): ?Confidence
+    {
+        return Confidence::fromWire($this->top_confidence);
+    }
+
+    private const LAST_PAGE = 10;
+
+    /**
+     * True when another page can follow. Uses `page`, `limit` and `total_available`. A total that is only a floor
+     * (`is_floor`) does not promise more when this page came back empty. The API serves pages 1 to 10.
+     */
+    public function hasMore(): bool
+    {
+        $total = $this->total_available;
+        if ($this->page === null || $this->limit === null || $total === null || $total->value === null) {
+            return false;
+        }
+        if ($this->page >= self::LAST_PAGE) {
+            return false;
+        }
+        if ($total->is_floor === true && ($this->results ?? []) === []) {
+            return false;
+        }
+
+        return $this->page * $this->limit < $total->value;
+    }
+
+    /**
+     * The number to pass as `page` for the next call, or null when `hasMore()` is false.
+     */
+    public function nextPage(): ?int
+    {
+        return $this->hasMore() && $this->page !== null ? $this->page + 1 : null;
     }
 }

@@ -26,7 +26,7 @@ final class Corpus extends AbstractResource
             'top' => $top,
         ]);
 
-        return new CorpusCoverage($body, $meta);
+        return CorpusCoverage::fromArray($body, $meta);
     }
 
     /**
@@ -45,6 +45,6 @@ final class Corpus extends AbstractResource
             'prefix' => $prefix,
         ]);
 
-        return new CorpusFacets($body, $meta);
+        return CorpusFacets::fromArray($body, $meta);
     }
 }

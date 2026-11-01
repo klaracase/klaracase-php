@@ -48,7 +48,7 @@ final class CitationCheckDocuments extends AbstractResource
             multipart: new Multipart('file', $filename, $contentType, $contents),
         );
 
-        return new CitationCheckDocument($body, $meta);
+        return CitationCheckDocument::fromArray($body, $meta);
     }
 
     /**
@@ -58,7 +58,7 @@ final class CitationCheckDocuments extends AbstractResource
     {
         [$body, $meta] = $this->transport->send('GET', '/citation-check-documents/' . Path::segment($id));
 
-        return new CitationCheckDocument($body, $meta);
+        return CitationCheckDocument::fromArray($body, $meta);
     }
 
     /**

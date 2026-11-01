@@ -5,28 +5,38 @@ declare(strict_types=1);
 namespace Klaracase\Response;
 
 /**
- * The `credits` member of a served body.
- *
- * `metered` is false for an unmetered account; `cost` and `credits_remaining` are then null.
+ * The `credits` member of a served body. `metered` is false for an unmetered account; `cost` and `credits_remaining` are then null.
  */
-final readonly class Credits
+final readonly class Credits implements Model
 {
+    use Wire;
+
+    /**
+     * @param array<string, mixed> $extra Keys this class does not model; kept so they survive a round trip.
+     * @param list<string> $nulls Modelled keys that arrived as an explicit JSON null.
+     */
     public function __construct(
-        public ?bool $metered,
-        public ?int $cost,
-        public ?int $credits_remaining,
+        public ?bool $metered = null,
+        public ?int $cost = null,
+        public ?int $credits_remaining = null,
+        public array $extra = [],
+        public array $nulls = [],
     ) {
     }
 
     /**
-     * @param array<array-key, mixed> $raw
+     * @param array<array-key, mixed> $data A decoded JSON object.
      */
-    public static function fromArray(array $raw): self
+    public static function fromArray(array $data): self
     {
+        $r = new Reader($data);
+
         return new self(
-            Fields::bool($raw, 'metered'),
-            Fields::int($raw, 'cost'),
-            Fields::int($raw, 'credits_remaining'),
+            metered: $r->bool('metered'),
+            cost: $r->int('cost'),
+            credits_remaining: $r->int('credits_remaining'),
+            extra: $r->rest(),
+            nulls: $r->nulls(),
         );
     }
 }

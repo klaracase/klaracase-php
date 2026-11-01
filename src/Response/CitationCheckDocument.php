@@ -4,108 +4,104 @@ declare(strict_types=1);
 
 namespace Klaracase\Response;
 
+use ArrayAccess;
+use Klaracase\Enum\DocumentErrorCode;
+use Klaracase\Enum\DocumentStatus;
+use Klaracase\Exception\ResponseShapeException;
+
 /**
- * Receipt of an uploaded document (POST and GET /citation-check-documents). It never holds the text.
+ * The receipt of an uploaded document. Statuses `uploaded`, `extracting` and `ocr_pending` are not final.
  *
- * `status` values: uploaded, extracting, ocr_pending, ready, failed. Only `ready` and `failed` are final.
- * `error_code` values: document_too_long, unsupported_format_pending, corrupted_document, zip_bomb_rejected,
- * encrypted_pdf, scanned_pdf, pdf_text_garbled, extraction_failed.
+ * @implements ArrayAccess<string, mixed>
  */
-final readonly class CitationCheckDocument extends Response
+final readonly class CitationCheckDocument implements Model, ArrayAccess
 {
-    protected const KEYS = [
-        'id',
-        'filename',
-        'format',
-        'status',
-        'char_count',
-        'page_count',
-        'pages_without_text_layer',
-        'check_max_chars',
-        'quoted_credits',
-        'error_code',
-        'expires_at',
-        'created_at',
-    ];
+    use Wire;
+    use ReadsAsArray;
 
     /**
-     * Document id; pass it to `citationChecks->create()` once `status` is `ready`.
+     * @return list<string>
      */
-    public ?string $id;
-
-    /**
-     * @var string|null
-     */
-    public ?string $filename;
-
-    /**
-     * pdf, docx, md or txt.
-     */
-    public ?string $format;
-
-    /**
-     * See the class description.
-     */
-    public ?string $status;
-
-    /**
-     * @var int|null
-     */
-    public ?int $char_count;
-
-    /**
-     * @var int|null
-     */
-    public ?int $page_count;
-
-    /**
-     * @var int|null
-     */
-    public ?int $pages_without_text_layer;
-
-    /**
-     * @var int|null
-     */
-    public ?int $check_max_chars;
-
-    /**
-     * Price of checking this document; null above the character cap.
-     */
-    public ?int $quoted_credits;
-
-    /**
-     * Why extraction failed; see the class description.
-     */
-    public ?string $error_code;
-
-    /**
-     * @var string|null
-     */
-    public ?string $expires_at;
-
-    /**
-     * @var string|null
-     */
-    public ?string $created_at;
-
-    /**
-     * @param array<array-key, mixed> $raw The decoded JSON object.
-     */
-    public function __construct(array $raw, ResponseMeta $meta)
+    private static function mapKeys(): array
     {
-        parent::__construct($raw, $meta);
+        return ['ignored_parameters'];
+    }
 
-        $this->id = Fields::string($raw, 'id');
-        $this->filename = Fields::string($raw, 'filename');
-        $this->format = Fields::string($raw, 'format');
-        $this->status = Fields::string($raw, 'status');
-        $this->char_count = Fields::int($raw, 'char_count');
-        $this->page_count = Fields::int($raw, 'page_count');
-        $this->pages_without_text_layer = Fields::int($raw, 'pages_without_text_layer');
-        $this->check_max_chars = Fields::int($raw, 'check_max_chars');
-        $this->quoted_credits = Fields::int($raw, 'quoted_credits');
-        $this->error_code = Fields::string($raw, 'error_code');
-        $this->expires_at = Fields::string($raw, 'expires_at');
-        $this->created_at = Fields::string($raw, 'created_at');
+    /**
+     * @param array<string, mixed>|null $ignored_parameters
+     * @param array<string, mixed> $extra Keys this class does not model; kept so they survive a round trip.
+     * @param list<string> $nulls Modelled keys that arrived as an explicit JSON null.
+     */
+    public function __construct(
+        public string $id,
+        public ?string $filename = null,
+        public ?string $format = null,
+        public ?string $status = null,
+        public ?int $char_count = null,
+        public ?int $page_count = null,
+        public ?int $pages_without_text_layer = null,
+        public ?int $check_max_chars = null,
+        public ?int $quoted_credits = null,
+        public ?string $error_code = null,
+        public ?string $expires_at = null,
+        public ?string $created_at = null,
+        public ?string $api_version = null,
+        public ?string $changelog_url = null,
+        public ?Credits $credits = null,
+        public ?array $ignored_parameters = null,
+        public ResponseMeta $meta = new ResponseMeta(200, null, 0.0),
+        public array $extra = [],
+        public array $nulls = [],
+    ) {
+    }
+
+    /**
+     * @param array<array-key, mixed> $data A decoded JSON object.
+     */
+    public static function fromArray(array $data, ?ResponseMeta $meta = null): self
+    {
+        $r = new Reader($data);
+        $id = $r->string('id');
+        if ($id === null) {
+            throw ResponseShapeException::missing(self::class, 'id', $meta);
+        }
+
+        return new self(
+            id: $id,
+            filename: $r->string('filename'),
+            format: $r->string('format'),
+            status: $r->string('status'),
+            char_count: $r->int('char_count'),
+            page_count: $r->int('page_count'),
+            pages_without_text_layer: $r->int('pages_without_text_layer'),
+            check_max_chars: $r->int('check_max_chars'),
+            quoted_credits: $r->int('quoted_credits'),
+            error_code: $r->string('error_code'),
+            expires_at: $r->string('expires_at'),
+            created_at: $r->string('created_at'),
+            api_version: $r->string('api_version'),
+            changelog_url: $r->string('changelog_url'),
+            credits: $r->object('credits', Credits::class),
+            ignored_parameters: $r->map('ignored_parameters'),
+            meta: $meta ?? new ResponseMeta(200, null, 0.0),
+            extra: $r->rest(),
+            nulls: $r->nulls(),
+        );
+    }
+
+    /**
+     * `$status` as an enum: null when absent, Unknown when the value is new to this SDK version. The raw string stays on the property.
+     */
+    public function statusEnum(): ?DocumentStatus
+    {
+        return DocumentStatus::fromWire($this->status);
+    }
+
+    /**
+     * `$error_code` as an enum: null when absent, Unknown when the value is new to this SDK version. The raw string stays on the property.
+     */
+    public function errorCodeEnum(): ?DocumentErrorCode
+    {
+        return DocumentErrorCode::fromWire($this->error_code);
     }
 }

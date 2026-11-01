@@ -15,7 +15,7 @@ class DocumentFailedException extends KlaracaseException
     {
         $reason = $document->error_code ?? 'unknown';
         parent::__construct(
-            sprintf('Document %s failed (%s).', $document->id ?? '?', $reason),
+            sprintf('Document %s failed (%s).', $document->id, $reason),
             errorCode: $document->error_code,
         );
     }

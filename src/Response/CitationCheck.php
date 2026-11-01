@@ -4,174 +4,148 @@ declare(strict_types=1);
 
 namespace Klaracase\Response;
 
+use ArrayAccess;
+use Klaracase\Enum\RunStatus;
+use Klaracase\Enum\Verdict;
+use Klaracase\Exception\ResponseShapeException;
+
 /**
- * Answer of POST /citation-checks and GET /citation-checks/{run}: one finished citation check run.
+ * A citation check run. A `not_found` verdict means the citation was not found in the corpus; it is not a claim that the citation is fabricated.
  *
- * Run `status` values: pending, gating, extracting, resolving, checking_external, complete, rejected, failed.
- * Finding and citation `verdict` values: verified_corpus, verified_external, not_found, out_of_coverage, ambiguous,
- * unverifiable, discrepancy. A `not_found` verdict means the citation was not found in the corpus. It is not a claim
- * that the citation is fabricated. Read `evidence`, the advisories and `coverage` on each finding before you act on it.
- * Offsets are Unicode codepoint offsets into the text you sent.
+ * @implements ArrayAccess<string, mixed>
  */
-final readonly class CitationCheck extends Response
+final readonly class CitationCheck implements Model, ArrayAccess
 {
-    protected const KEYS = [
-        'id',
-        'status',
-        'source',
-        'progress',
-        'verdict_counts',
-        'partial',
-        'unverified_count',
-        'reason_counts',
-        'unique_citations',
-        'extraction',
-        'notes',
-        'findings_unavailable_reason',
-        'findings_purged_at',
-        'findings',
-        'submitted_at',
-        'completed_at',
-        'created_at',
-        'payload_truncated',
-    ];
+    use Wire;
+    use ReadsAsArray;
 
     /**
-     * Run id.
+     * @return list<string>
      */
-    public ?string $id;
-
-    /**
-     * Run status; see the class description.
-     */
-    public ?string $status;
-
-    /**
-     * Where the run came from, `api_v1` for this API.
-     */
-    public ?string $source;
-
-    /**
-     * @var array{citations_total?: int, citations_checked?: int, unique_citations_total?: int}|null
-     */
-    public ?array $progress;
-
-    /**
-     * Count per verdict.
-     *
-     * @var array<string, int>|null
-     */
-    public ?array $verdict_counts;
-
-    /**
-     * @var bool|null
-     */
-    public ?bool $partial;
-
-    /**
-     * @var int|null
-     */
-    public ?int $unverified_count;
-
-    /**
-     * @var list<array{category?: string, count?: int}>|null
-     */
-    public ?array $reason_counts;
-
-    /**
-     * One row per distinct citation.
-     *
-     * @var list<array{key_basis?: string, target_artifact_id?: string|null, canonical?: string, spellings?: list<string>, occurrences?: int, verdict?: string, reference_type?: string}>|null
-     */
-    public ?array $unique_citations;
-
-    /**
-     * Counters of the citation extraction step.
-     *
-     * @var array<string, mixed>|null
-     */
-    public ?array $extraction;
-
-    /**
-     * @var list<mixed>|null
-     */
-    public ?array $notes;
-
-    /**
-     * @var string|null
-     */
-    public ?string $findings_unavailable_reason;
-
-    /**
-     * @var string|null
-     */
-    public ?string $findings_purged_at;
-
-    /**
-     * One row per place a citation occurs, with offsets.
-     *
-     * @var list<array{id?: string, raw_text?: string, canonical?: string|null, type?: string, role?: string|null, verdict?: string, external_status?: string, start_offset?: int, end_offset?: int, occurrence_index?: int, confidence?: string|null, matched_decision?: array{artifact_id?: string, ecli?: string|null, court?: string, date?: string}|null, subdivision_check?: string, subdivision_advisory?: string|null, check_scope?: array<string, mixed>|null, ambiguity_advisory?: string|null, coverage?: mixed, coverage_boundary?: mixed, coverage_advisory?: string|null, evidence?: array<string, mixed>|null, disputed_at?: string|null}>|null
-     */
-    public ?array $findings;
-
-    /**
-     * @var string|null
-     */
-    public ?string $submitted_at;
-
-    /**
-     * @var string|null
-     */
-    public ?string $completed_at;
-
-    /**
-     * @var string|null
-     */
-    public ?string $created_at;
-
-    /**
-     * @var bool|null
-     */
-    public ?bool $payload_truncated;
-
-    /**
-     * @param array<array-key, mixed> $raw The decoded JSON object.
-     */
-    public function __construct(array $raw, ResponseMeta $meta)
+    private static function mapKeys(): array
     {
-        parent::__construct($raw, $meta);
+        return ['verdict_counts', 'ignored_parameters'];
+    }
 
-        $this->id = Fields::string($raw, 'id');
-        $this->status = Fields::string($raw, 'status');
-        $this->source = Fields::string($raw, 'source');
-        /** @var array{citations_total?: int, citations_checked?: int, unique_citations_total?: int}|null $value */
-        $value = Fields::array($raw, 'progress');
-        $this->progress = $value;
-        /** @var array<string, int>|null $value */
-        $value = Fields::array($raw, 'verdict_counts');
-        $this->verdict_counts = $value;
-        $this->partial = Fields::bool($raw, 'partial');
-        $this->unverified_count = Fields::int($raw, 'unverified_count');
-        /** @var list<array{category?: string, count?: int}>|null $value */
-        $value = Fields::array($raw, 'reason_counts');
-        $this->reason_counts = $value;
-        /** @var list<array{key_basis?: string, target_artifact_id?: string|null, canonical?: string, spellings?: list<string>, occurrences?: int, verdict?: string, reference_type?: string}>|null $value */
-        $value = Fields::array($raw, 'unique_citations');
-        $this->unique_citations = $value;
-        /** @var array<string, mixed>|null $value */
-        $value = Fields::array($raw, 'extraction');
-        $this->extraction = $value;
-        /** @var list<mixed>|null $value */
-        $value = Fields::array($raw, 'notes');
-        $this->notes = $value;
-        $this->findings_unavailable_reason = Fields::string($raw, 'findings_unavailable_reason');
-        $this->findings_purged_at = Fields::string($raw, 'findings_purged_at');
-        /** @var list<array{id?: string, raw_text?: string, canonical?: string|null, type?: string, role?: string|null, verdict?: string, external_status?: string, start_offset?: int, end_offset?: int, occurrence_index?: int, confidence?: string|null, matched_decision?: array{artifact_id?: string, ecli?: string|null, court?: string, date?: string}|null, subdivision_check?: string, subdivision_advisory?: string|null, check_scope?: array<string, mixed>|null, ambiguity_advisory?: string|null, coverage?: mixed, coverage_boundary?: mixed, coverage_advisory?: string|null, evidence?: array<string, mixed>|null, disputed_at?: string|null}>|null $value */
-        $value = Fields::array($raw, 'findings');
-        $this->findings = $value;
-        $this->submitted_at = Fields::string($raw, 'submitted_at');
-        $this->completed_at = Fields::string($raw, 'completed_at');
-        $this->created_at = Fields::string($raw, 'created_at');
-        $this->payload_truncated = Fields::bool($raw, 'payload_truncated');
+    /**
+     * @param array<string, int>|null $verdict_counts
+     * @param list<ReasonCount>|null $reason_counts
+     * @param list<UniqueCitation>|null $unique_citations
+     * @param list<mixed>|null $notes
+     * @param list<Finding>|null $findings
+     * @param array<string, mixed>|null $ignored_parameters
+     * @param array<string, mixed> $extra Keys this class does not model; kept so they survive a round trip.
+     * @param list<string> $nulls Modelled keys that arrived as an explicit JSON null.
+     */
+    public function __construct(
+        public string $id,
+        public ?string $status = null,
+        public ?string $source = null,
+        public ?Progress $progress = null,
+        public ?array $verdict_counts = null,
+        public ?bool $partial = null,
+        public ?int $unverified_count = null,
+        public ?array $reason_counts = null,
+        public ?array $unique_citations = null,
+        public ?Extraction $extraction = null,
+        public ?array $notes = null,
+        public ?string $findings_unavailable_reason = null,
+        public ?string $findings_purged_at = null,
+        public ?array $findings = null,
+        public ?string $submitted_at = null,
+        public ?string $completed_at = null,
+        public ?string $created_at = null,
+        public ?bool $payload_truncated = null,
+        public ?string $api_version = null,
+        public ?string $changelog_url = null,
+        public ?Credits $credits = null,
+        public ?array $ignored_parameters = null,
+        public ResponseMeta $meta = new ResponseMeta(200, null, 0.0),
+        public array $extra = [],
+        public array $nulls = [],
+    ) {
+    }
+
+    /**
+     * @param array<array-key, mixed> $data A decoded JSON object.
+     */
+    public static function fromArray(array $data, ?ResponseMeta $meta = null): self
+    {
+        $r = new Reader($data);
+        $id = $r->string('id');
+        if ($id === null) {
+            throw ResponseShapeException::missing(self::class, 'id', $meta);
+        }
+
+        return new self(
+            id: $id,
+            status: $r->string('status'),
+            source: $r->string('source'),
+            progress: $r->object('progress', Progress::class),
+            verdict_counts: $r->ints('verdict_counts'),
+            partial: $r->bool('partial'),
+            unverified_count: $r->int('unverified_count'),
+            reason_counts: $r->listOf('reason_counts', ReasonCount::class),
+            unique_citations: $r->listOf('unique_citations', UniqueCitation::class),
+            extraction: $r->object('extraction', Extraction::class),
+            notes: $r->list('notes'),
+            findings_unavailable_reason: $r->string('findings_unavailable_reason'),
+            findings_purged_at: $r->string('findings_purged_at'),
+            findings: $r->listOf('findings', Finding::class),
+            submitted_at: $r->string('submitted_at'),
+            completed_at: $r->string('completed_at'),
+            created_at: $r->string('created_at'),
+            payload_truncated: $r->bool('payload_truncated'),
+            api_version: $r->string('api_version'),
+            changelog_url: $r->string('changelog_url'),
+            credits: $r->object('credits', Credits::class),
+            ignored_parameters: $r->map('ignored_parameters'),
+            meta: $meta ?? new ResponseMeta(200, null, 0.0),
+            extra: $r->rest(),
+            nulls: $r->nulls(),
+        );
+    }
+
+    /**
+     * `$status` as an enum: null when absent, Unknown when the value is new to this SDK version. The raw string stays on the property.
+     */
+    public function statusEnum(): ?RunStatus
+    {
+        return RunStatus::fromWire($this->status);
+    }
+
+    /**
+     * True when the run has finished (`status` is `complete`).
+     */
+    public function isComplete(): bool
+    {
+        return $this->status === RunStatus::Complete->value;
+    }
+
+    /**
+     * How many citations got this verdict, from `verdict_counts`. 0 when the verdict does not appear.
+     */
+    public function count(Verdict|string $verdict): int
+    {
+        $key = $verdict instanceof Verdict ? $verdict->value : $verdict;
+
+        return $this->verdict_counts[$key] ?? 0;
+    }
+
+    /**
+     * The findings grouped by their raw `verdict` string. A finding without a verdict is left out.
+     *
+     * @return array<string, list<Finding>>
+     */
+    public function findingsByVerdict(): array
+    {
+        $groups = [];
+        foreach ($this->findings ?? [] as $finding) {
+            if ($finding->verdict !== null) {
+                $groups[$finding->verdict][] = $finding;
+            }
+        }
+
+        return $groups;
     }
 }

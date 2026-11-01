@@ -6,6 +6,8 @@ namespace Klaracase\Tests\Unit;
 
 use BadMethodCallException;
 use Http\Mock\Client as MockClient;
+use Klaracase\Enum\RunStatus;
+use Klaracase\Enum\Verdict;
 use Klaracase\Exception\ApiException;
 use Klaracase\Exception\AuthenticationException;
 use Klaracase\Exception\ConfigurationException;
@@ -22,6 +24,7 @@ use Klaracase\Exception\TimeoutException;
 use Klaracase\Exception\TransportException;
 use Klaracase\Exception\ValidationException;
 use Klaracase\Klaracase;
+use Klaracase\Tests\Support\Canonical;
 use Klaracase\Tests\Support\Json;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -165,8 +168,8 @@ final class ClientTest extends TestCase
 
         $this->assertSame(['brand_new_key' => ['a' => 1]], $facets->extra);
         $this->assertSame(['a' => 1], $facets['brand_new_key']);
-        $this->assertSame($body, $facets->toArray());
-        $this->assertSame($body, json_decode(json_encode($facets, JSON_THROW_ON_ERROR), true));
+        $this->assertSame(Canonical::sortKeys($body), Canonical::sortKeys($facets->toArray()));
+        $this->assertSame(Canonical::sortKeys($body), Canonical::sortKeys(json_decode(json_encode($facets, JSON_THROW_ON_ERROR), true)));
         $this->assertSame('court_name', $facets->field);
         $this->assertSame(3, $facets->total_values);
         $this->assertSame(0, $facets->credits?->cost);
@@ -188,18 +191,21 @@ final class ClientTest extends TestCase
         $run = $this->client()->citationChecks->get('0193b0c5-1a2b-7c3d-8e4f-5a6b7c8d9e0f');
 
         $this->assertSame('a_status_from_the_future', $run->status);
+        $this->assertSame(RunStatus::Unknown, $run->statusEnum());
         $this->assertNotNull($run->findings);
-        $this->assertSame('a_verdict_from_the_future', $run->findings[0]['verdict'] ?? null);
+        $this->assertSame('a_verdict_from_the_future', $run->findings[0]->verdict);
+        $this->assertSame(Verdict::Unknown, $run->findings[0]->verdictEnum());
     }
 
     public function testAKeyWithTheWrongJsonTypeReadsAsNullAndStaysInTheRawBody(): void
     {
-        $this->queue(200, '{"id":123,"status":"ready"}');
+        $this->queue(200, '{"id":"d1","filename":123,"status":"ready"}');
 
         $document = $this->client()->citationCheckDocuments->get('x');
 
-        $this->assertNull($document->id);
-        $this->assertSame(123, $document['id']);
+        $this->assertNull($document->filename);
+        $this->assertSame(123, $document['filename']);
+        $this->assertSame(123, $document->extra['filename']);
     }
 
     public function testTheDefaultDeprecationHookRaisesOneUserDeprecation(): void

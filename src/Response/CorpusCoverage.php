@@ -4,100 +4,79 @@ declare(strict_types=1);
 
 namespace Klaracase\Response;
 
+use ArrayAccess;
+
 /**
- * Answer of GET /corpus/coverage: what the corpus holds. Free.
+ * Answer of GET /corpus/coverage. Free.
+ *
+ * @implements ArrayAccess<string, mixed>
  */
-final readonly class CorpusCoverage extends Response
+final readonly class CorpusCoverage implements Model, ArrayAccess
 {
-    protected const KEYS = [
-        'total_decisions',
-        'branches',
-        'courts',
-        'courts_returned',
-        'courts_total',
-        'corpus_floors',
-        'coverage_ranges',
-        'as_of',
-        'filter_coverage_caveats',
-        'law_coverage',
-    ];
+    use Wire;
+    use ReadsAsArray;
 
     /**
-     * @var array{value?: int, is_floor?: bool}|null
+     * @return list<string>
      */
-    public ?array $total_decisions;
-
-    /**
-     * @var list<array<string, mixed>>|null
-     */
-    public ?array $branches;
-
-    /**
-     * @var list<array<string, mixed>>|null
-     */
-    public ?array $courts;
-
-    /**
-     * @var int|null
-     */
-    public ?int $courts_returned;
-
-    /**
-     * @var int|null
-     */
-    public ?int $courts_total;
-
-    /**
-     * @var string|null
-     */
-    public ?string $corpus_floors;
-
-    /**
-     * @var array<string, mixed>|null
-     */
-    public ?array $coverage_ranges;
-
-    /**
-     * @var string|null
-     */
-    public ?string $as_of;
-
-    /**
-     * @var string|null
-     */
-    public ?string $filter_coverage_caveats;
-
-    /**
-     * @var array<string, mixed>|null
-     */
-    public ?array $law_coverage;
-
-    /**
-     * @param array<array-key, mixed> $raw The decoded JSON object.
-     */
-    public function __construct(array $raw, ResponseMeta $meta)
+    private static function mapKeys(): array
     {
-        parent::__construct($raw, $meta);
+        return ['ignored_parameters'];
+    }
 
-        /** @var array{value?: int, is_floor?: bool}|null $value */
-        $value = Fields::array($raw, 'total_decisions');
-        $this->total_decisions = $value;
-        /** @var list<array<string, mixed>>|null $value */
-        $value = Fields::array($raw, 'branches');
-        $this->branches = $value;
-        /** @var list<array<string, mixed>>|null $value */
-        $value = Fields::array($raw, 'courts');
-        $this->courts = $value;
-        $this->courts_returned = Fields::int($raw, 'courts_returned');
-        $this->courts_total = Fields::int($raw, 'courts_total');
-        $this->corpus_floors = Fields::string($raw, 'corpus_floors');
-        /** @var array<string, mixed>|null $value */
-        $value = Fields::array($raw, 'coverage_ranges');
-        $this->coverage_ranges = $value;
-        $this->as_of = Fields::string($raw, 'as_of');
-        $this->filter_coverage_caveats = Fields::string($raw, 'filter_coverage_caveats');
-        /** @var array<string, mixed>|null $value */
-        $value = Fields::array($raw, 'law_coverage');
-        $this->law_coverage = $value;
+    /**
+     * @param list<CoverageBranch>|null $branches
+     * @param list<CoverageCourt>|null $courts
+     * @param array<string, mixed>|null $ignored_parameters
+     * @param array<string, mixed> $extra Keys this class does not model; kept so they survive a round trip.
+     * @param list<string> $nulls Modelled keys that arrived as an explicit JSON null.
+     */
+    public function __construct(
+        public ?Count $total_decisions = null,
+        public ?array $branches = null,
+        public ?array $courts = null,
+        public ?int $courts_returned = null,
+        public ?int $courts_total = null,
+        public ?string $corpus_floors = null,
+        public ?CoverageRanges $coverage_ranges = null,
+        public ?string $as_of = null,
+        public ?string $filter_coverage_caveats = null,
+        public ?LawCoverage $law_coverage = null,
+        public ?string $api_version = null,
+        public ?string $changelog_url = null,
+        public ?Credits $credits = null,
+        public ?array $ignored_parameters = null,
+        public ResponseMeta $meta = new ResponseMeta(200, null, 0.0),
+        public array $extra = [],
+        public array $nulls = [],
+    ) {
+    }
+
+    /**
+     * @param array<array-key, mixed> $data A decoded JSON object.
+     */
+    public static function fromArray(array $data, ?ResponseMeta $meta = null): self
+    {
+        $r = new Reader($data);
+
+        return new self(
+            total_decisions: $r->object('total_decisions', Count::class),
+            branches: $r->listOf('branches', CoverageBranch::class),
+            courts: $r->listOf('courts', CoverageCourt::class),
+            courts_returned: $r->int('courts_returned'),
+            courts_total: $r->int('courts_total'),
+            corpus_floors: $r->string('corpus_floors'),
+            coverage_ranges: $r->object('coverage_ranges', CoverageRanges::class),
+            as_of: $r->string('as_of'),
+            filter_coverage_caveats: $r->string('filter_coverage_caveats'),
+            law_coverage: $r->object('law_coverage', LawCoverage::class),
+            api_version: $r->string('api_version'),
+            changelog_url: $r->string('changelog_url'),
+            credits: $r->object('credits', Credits::class),
+            ignored_parameters: $r->map('ignored_parameters'),
+            meta: $meta ?? new ResponseMeta(200, null, 0.0),
+            extra: $r->rest(),
+            nulls: $r->nulls(),
+        );
     }
 }

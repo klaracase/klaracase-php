@@ -24,6 +24,6 @@ final class Norms extends AbstractResource
             'jurisdiction' => $jurisdiction,
         ]);
 
-        return new Norm($body, $meta);
+        return Norm::fromArray($body, $meta);
     }
 }

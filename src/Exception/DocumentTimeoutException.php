@@ -14,7 +14,7 @@ class DocumentTimeoutException extends KlaracaseException
     public function __construct(public readonly CitationCheckDocument $document, float $timeout)
     {
         parent::__construct(
-            sprintf('Document %s was not ready after %s seconds (last status: %s).', $document->id ?? '?', rtrim(rtrim(sprintf('%.3F', $timeout), '0'), '.'), $document->status ?? 'unknown'),
+            sprintf('Document %s was not ready after %s seconds (last status: %s).', $document->id, rtrim(rtrim(sprintf('%.3F', $timeout), '0'), '.'), $document->status ?? 'unknown'),
             errorCode: 'wait_timeout',
         );
     }

@@ -206,7 +206,7 @@ final class Klaracase
             'bridge' => $bridge,
         ]);
 
-        return new SearchResult($body, $meta);
+        return SearchResult::fromArray($body, $meta);
     }
 
     /**

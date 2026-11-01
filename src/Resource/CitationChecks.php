@@ -47,7 +47,7 @@ final class CitationChecks extends AbstractResource
 
         [$body, $meta] = $this->transport->send('POST', '/citation-checks', json: $json);
 
-        return new CitationCheck($body, $meta);
+        return CitationCheck::fromArray($body, $meta);
     }
 
     /**
@@ -57,6 +57,6 @@ final class CitationChecks extends AbstractResource
     {
         [$body, $meta] = $this->transport->send('GET', '/citation-checks/' . Path::segment($runId));
 
-        return new CitationCheck($body, $meta);
+        return CitationCheck::fromArray($body, $meta);
     }
 }

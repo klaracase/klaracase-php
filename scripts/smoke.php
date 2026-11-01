@@ -21,7 +21,7 @@ try {
     $coverage = $client->corpus->coverage(top: 3);
     printf(
         "coverage: %s decisions, %s courts returned, api release %s, %.0f ms\n",
-        (string) ($coverage->total_decisions['value'] ?? '?'),
+        (string) ($coverage->total_decisions->value ?? '?'),
         (string) ($coverage->courts_returned ?? '?'),
         $coverage->meta->apiRelease ?? 'unknown',
         $coverage->meta->requestDuration * 1000,

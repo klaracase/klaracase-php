@@ -14,6 +14,7 @@ use Klaracase\Support\Clock;
 use Klaracase\Support\NativeSleeper;
 use Klaracase\Support\Sleeper;
 use Klaracase\Support\SystemClock;
+use Klaracase\Tests\Support\Canonical;
 use Klaracase\Tests\Support\FakeClock;
 use Klaracase\Tests\Support\FieldPath;
 use Klaracase\Tests\Support\Json;
@@ -400,7 +401,10 @@ final class ConformanceTest extends TestCase
         if (($expected['body_roundtrip'] ?? false) === true) {
             $last = Json::array(end($responses));
             $this->assertTrue(method_exists($result, 'toArray'));
-            $this->assertSame(Json::decodeFile(dirname($file) . '/' . Json::string($last['body_file'])), $result->toArray());
+            $body = file_get_contents(dirname($file) . '/' . Json::string($last['body_file']));
+            $this->assertIsString($body);
+            $this->assertSame(Canonical::json($body), Canonical::json(json_encode($result, JSON_THROW_ON_ERROR)), 'the JSON form of the response equals the body');
+            $this->assertSame(Canonical::sortKeys(Json::decodeFile(dirname($file) . '/' . Json::string($last['body_file']))), Canonical::sortKeys($result->toArray()), 'toArray() equals the body');
         }
         if (array_key_exists('deprecation_warning', $expected)) {
             $this->assertSame($expected['deprecation_warning'], $deprecations !== []);
