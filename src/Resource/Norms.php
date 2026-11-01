@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Klaracase\Resource;
 
+use Klaracase\Exception\KlaracaseException;
 use Klaracase\Http\Path;
 use Klaracase\Http\Request;
 use Klaracase\RequestOptions;
@@ -20,6 +21,8 @@ final class Norms extends AbstractResource
      * @param string $reference For example `§ 535 BGB` or `Art. 6 DSGVO`, at most 120 characters.
      * @param string|null $jurisdiction DE or EU. Read only when the abbreviation is ambiguous.
      * @param RequestOptions|null $options Timeout, retries, extra headers and query for this call.
+     *
+     * @throws KlaracaseException On an API error or when no answer arrives.
      */
     public function get(string $reference, ?string $jurisdiction = null, ?RequestOptions $options = null): Norm
     {

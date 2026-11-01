@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Klaracase\Support;
 
+/**
+ * The real sleep.
+ *
+ * @internal
+ */
 final class NativeSleeper implements Sleeper
 {
     public function sleep(float $seconds): void

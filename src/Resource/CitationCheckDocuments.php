@@ -6,6 +6,7 @@ namespace Klaracase\Resource;
 
 use Klaracase\Exception\DocumentFailedException;
 use Klaracase\Exception\DocumentTimeoutException;
+use Klaracase\Exception\KlaracaseException;
 use Klaracase\Exception\ValidationException;
 use Klaracase\Http\Multipart;
 use Klaracase\Http\Path;
@@ -48,6 +49,7 @@ final class CitationCheckDocuments extends AbstractResource
      * @param RequestOptions|null $options Timeout, retries, extra headers and query for this call.
      *
      * @throws ValidationException With code `client_validation`, before any request, when the path does not exist or cannot be read.
+     * @throws KlaracaseException On an API error or when no answer arrives.
      */
     public function upload(SplFileInfo|string $path, ?string $filename = null, ?string $contentType = null, ?RequestOptions $options = null): CitationCheckDocument
     {
@@ -79,6 +81,8 @@ final class CitationCheckDocuments extends AbstractResource
      * @param string $filename For example `schriftsatz.pdf`.
      * @param string|null $contentType Defaults from the extension (pdf, docx, md, txt), then from the bytes.
      * @param RequestOptions|null $options Timeout, retries, extra headers and query for this call.
+     *
+     * @throws KlaracaseException On an API error or when no answer arrives.
      */
     public function uploadBytes(string $bytes, string $filename, ?string $contentType = null, ?RequestOptions $options = null): CitationCheckDocument
     {
@@ -96,6 +100,8 @@ final class CitationCheckDocuments extends AbstractResource
      *
      * @param string $id The `id` of the receipt.
      * @param RequestOptions|null $options Timeout, retries, extra headers and query for this call.
+     *
+     * @throws KlaracaseException On an API error or when no answer arrives.
      */
     public function get(string $id, ?RequestOptions $options = null): CitationCheckDocument
     {
@@ -114,6 +120,7 @@ final class CitationCheckDocuments extends AbstractResource
      *
      * @throws DocumentFailedException When the upload ends in status `failed`; read `$e->document->error_code`.
      * @throws DocumentTimeoutException When the timeout passes first.
+     * @throws KlaracaseException On an API error or when no answer arrives.
      */
     public function waitUntilReady(CitationCheckDocument|string $documentOrId, float $pollInterval = 2.0, float $timeout = 120.0, ?RequestOptions $options = null): CitationCheckDocument
     {

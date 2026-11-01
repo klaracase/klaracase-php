@@ -6,6 +6,7 @@ namespace Klaracase\Resource;
 
 use Klaracase\Enum\Branch;
 use Klaracase\Enum\FacetField;
+use Klaracase\Exception\KlaracaseException;
 use Klaracase\Http\Path;
 use Klaracase\Http\Request;
 use Klaracase\RequestOptions;
@@ -23,6 +24,8 @@ final class Corpus extends AbstractResource
      * @param Branch|string|null $branch Scope the report to one court branch: ordentlich, verwaltung, sozial, arbeit, finanz, verfassung, patent or unbekannt. A branch is a court jurisdiction, not a legal subject area.
      * @param int<1, 100>|null $top Cap on the per-court rows, busiest first. The server default is 20. The branch rollup is never capped.
      * @param RequestOptions|null $options Timeout, retries, extra headers and query for this call.
+     *
+     * @throws KlaracaseException On an API error or when no answer arrives.
      */
     public function coverage(Branch|string|null $branch = null, ?int $top = null, ?RequestOptions $options = null): CorpusCoverage
     {
@@ -42,6 +45,8 @@ final class Corpus extends AbstractResource
      * @param string|null $norm Required for `cited_norms`: the norm whose family to list, for example `§ 543 BGB`.
      * @param string|null $prefix Case-insensitive prefix filter on the facet value. A trailing space counts.
      * @param RequestOptions|null $options Timeout, retries, extra headers and query for this call.
+     *
+     * @throws KlaracaseException On an API error or when no answer arrives.
      */
     public function facets(FacetField|string $field, ?string $type = null, ?string $norm = null, ?string $prefix = null, ?RequestOptions $options = null): CorpusFacets
     {

@@ -12,6 +12,7 @@ use Klaracase\Enum\DocumentType;
 use Klaracase\Enum\Mode;
 use Klaracase\Enum\Section;
 use Klaracase\Enum\Statute;
+use Klaracase\Exception\KlaracaseException;
 use Klaracase\Exception\ValidationException;
 use Klaracase\Http\Path;
 use Klaracase\Http\Request;
@@ -51,6 +52,7 @@ final class Decisions extends AbstractResource
      * @param RequestOptions|null $options Timeout, retries, extra headers and query for this call.
      *
      * @throws ValidationException With code `client_validation`, before any request, for a malformed date or `$dateFrom` after `$dateTo`.
+     * @throws KlaracaseException On an API error or when no answer arrives.
      */
     public function search(
         string $query,
@@ -98,7 +100,7 @@ final class Decisions extends AbstractResource
      * Stop reading the generator and no further page is fetched.
      *
      * @param non-empty-string $query 2 to 500 characters, German legal-concept phrasing.
-     * @param positive-int $maxPages Most pages to fetch, at least 1. Values above 10 count as 10.
+     * @param int<1, max> $maxPages Most pages to fetch, at least 1. Values above 10 count as 10.
      * @param string|null $court Court name, for example `BGH`.
      * @param Branch|string|null $branch Court branch.
      * @param DocumentType|string|null $documentType Urteil, Beschluss, Verfügung, Sonstige, Gerichtsbescheid or Schlussanträge.
@@ -113,6 +115,7 @@ final class Decisions extends AbstractResource
      * @return Generator<int, DecisionHit>
      *
      * @throws ValidationException With code `client_validation` when `$maxPages` is below 1, or for the date checks of `search()`.
+     * @throws KlaracaseException On an API error or when no answer arrives.
      */
     public function searchAll(
         string $query,
@@ -130,7 +133,33 @@ final class Decisions extends AbstractResource
         ?RequestOptions $options = null,
     ): Generator {
         $pages = min(self::requirePages($maxPages), self::MAX_SEARCH_PAGES);
+        Params::dateOrder(Params::date($dateFrom, 'dateFrom'), Params::date($dateTo, 'dateTo'));
 
+        return $this->searchPages($query, $pages, $court, $branch, $documentType, $citedNorm, $citedStatutes, $dateFrom, $dateTo, $mode, $limit, $bridge, $options);
+    }
+
+    /**
+     * @param non-empty-string $query
+     * @param int<1, 10> $pages
+     * @param list<Statute|string>|null $citedStatutes
+     * @param int<1, 20>|null $limit
+     * @return Generator<int, DecisionHit>
+     */
+    private function searchPages(
+        string $query,
+        int $pages,
+        ?string $court,
+        Branch|string|null $branch,
+        DocumentType|string|null $documentType,
+        ?string $citedNorm,
+        ?array $citedStatutes,
+        DateTimeInterface|string|null $dateFrom,
+        DateTimeInterface|string|null $dateTo,
+        Mode|string|null $mode,
+        ?int $limit,
+        ?bool $bridge,
+        ?RequestOptions $options,
+    ): Generator {
         $index = 0;
         for ($page = 1; $page <= $pages; $page++) {
             $result = $this->search($query, $court, $branch, $documentType, $citedNorm, $citedStatutes, $dateFrom, $dateTo, $mode, $limit, $page, $bridge, $options);
@@ -157,6 +186,7 @@ final class Decisions extends AbstractResource
      * @param RequestOptions|null $options Timeout, retries, extra headers and query for this call.
      *
      * @throws ValidationException With code `client_validation`, before any request, for a malformed `$date` or `$rnFrom` above `$rnTo`.
+     * @throws KlaracaseException On an API error or when no answer arrives.
      */
     public function get(
         string $id,
@@ -194,6 +224,7 @@ final class Decisions extends AbstractResource
      * @param RequestOptions|null $options Timeout, retries, extra headers and query for this call.
      *
      * @throws ValidationException With code `client_validation`, before any request, for a malformed `$date`.
+     * @throws KlaracaseException On an API error or when no answer arrives.
      */
     public function citations(
         string $id,
@@ -224,7 +255,7 @@ final class Decisions extends AbstractResource
      * more.
      *
      * @param string $id A UUID, an Aktenzeichen or an ECLI.
-     * @param positive-int $maxPages Most pages to fetch, at least 1. Values above 20 count as 20.
+     * @param int<1, max> $maxPages Most pages to fetch, at least 1. Values above 20 count as 20.
      * @param Direction|string|null $direction outgoing, incoming or both.
      * @param string|null $court Disambiguates an Aktenzeichen.
      * @param DateTimeInterface|string|null $date Disambiguates an Aktenzeichen, `YYYY-MM-DD`.
@@ -232,6 +263,7 @@ final class Decisions extends AbstractResource
      * @return Generator<int, CitationEdge>
      *
      * @throws ValidationException With code `client_validation` when `$maxPages` is below 1.
+     * @throws KlaracaseException On an API error or when no answer arrives.
      */
     public function citationsAll(
         string $id,
@@ -242,7 +274,23 @@ final class Decisions extends AbstractResource
         ?RequestOptions $options = null,
     ): Generator {
         $pages = min(self::requirePages($maxPages), self::MAX_CITATION_PAGES);
+        Params::date($date, 'date');
 
+        return $this->citationPages($id, $pages, $direction, $court, $date, $options);
+    }
+
+    /**
+     * @param int<1, 20> $pages
+     * @return Generator<int, CitationEdge>
+     */
+    private function citationPages(
+        string $id,
+        int $pages,
+        Direction|string|null $direction,
+        ?string $court,
+        DateTimeInterface|string|null $date,
+        ?RequestOptions $options,
+    ): Generator {
         $index = 0;
         for ($page = 1; $page <= $pages; $page++) {
             $result = $this->citations($id, $direction, 1, $court, $date, $page, $options);
@@ -258,6 +306,9 @@ final class Decisions extends AbstractResource
         }
     }
 
+    /**
+     * @return int<1, max>
+     */
     private static function requirePages(int $maxPages): int
     {
         if ($maxPages < 1) {

@@ -9,6 +9,7 @@ use Klaracase\Enum\Branch;
 use Klaracase\Enum\DocumentType;
 use Klaracase\Enum\Mode;
 use Klaracase\Enum\Statute;
+use Klaracase\Exception\KlaracaseException;
 use Klaracase\Resource\CitationCheckDocuments;
 use Klaracase\Resource\CitationChecks;
 use Klaracase\Resource\Corpus;
@@ -22,7 +23,8 @@ use Klaracase\Response\SearchResult;
  * queue of answers, so code that asks for a `Client` can be tested without a network.
  *
  * Both implementations also expose the resources as public read-only properties
- * (`$client->decisions`), the form the README uses.
+ * (`$client->decisions`), the form the README uses. An interface cannot declare a property before PHP 8.4, so
+ * code typed against `Client` reads the resources through the methods: `$client->decisions()->search(...)`.
  */
 interface Client
 {
@@ -56,6 +58,7 @@ interface Client
      * @param RequestOptions|null $options Timeout, retries, extra headers and query for this call.
      *
      * @throws Exception\ValidationException With code `client_validation`, before any request, for a malformed date or `$dateFrom` after `$dateTo`.
+     * @throws KlaracaseException On an API error or when no answer arrives.
      */
     public function search(
         string $query,

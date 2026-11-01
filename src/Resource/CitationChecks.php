@@ -7,6 +7,7 @@ namespace Klaracase\Resource;
 use DateTimeInterface;
 use Klaracase\Exception\DocumentFailedException;
 use Klaracase\Exception\DocumentTimeoutException;
+use Klaracase\Exception\KlaracaseException;
 use Klaracase\Exception\ValidationException;
 use Klaracase\Http\Path;
 use Klaracase\Http\Request;
@@ -36,6 +37,7 @@ final class CitationChecks extends AbstractResource
      * @param RequestOptions|null $options Timeout, retries, extra headers and query for this call.
      *
      * @throws ValidationException With code `client_validation`, before any request, when not exactly one of `$text` and `$documentId` is given or the date is malformed.
+     * @throws KlaracaseException On an API error or when no answer arrives.
      */
     public function create(
         ?string $text = null,
@@ -79,6 +81,7 @@ final class CitationChecks extends AbstractResource
      * @throws ValidationException With code `client_validation` when the file cannot be read.
      * @throws DocumentFailedException When the upload ends in status `failed`.
      * @throws DocumentTimeoutException When the upload is not ready within `$waitTimeout`.
+     * @throws KlaracaseException On an API error or when no answer arrives.
      */
     public function createFromFile(
         string $path,
@@ -99,6 +102,8 @@ final class CitationChecks extends AbstractResource
      *
      * @param string $runId The `id` of a run.
      * @param RequestOptions|null $options Timeout, retries, extra headers and query for this call.
+     *
+     * @throws KlaracaseException On an API error or when no answer arrives.
      */
     public function get(string $runId, ?RequestOptions $options = null): CitationCheck
     {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Klaracase\Resource;
 
+use Klaracase\Exception\KlaracaseException;
 use Klaracase\Exception\ValidationException;
 use Klaracase\Http\Request;
 use Klaracase\RequestOptions;
@@ -26,6 +27,7 @@ final class Datapackages extends AbstractResource
      * @param RequestOptions|null $options Timeout, retries, extra headers and query for this call.
      *
      * @throws ValidationException With code `client_validation`, before any request, when `$ids` is empty, holds more than 10 entries or holds an empty id.
+     * @throws KlaracaseException On an API error or when no answer arrives.
      */
     public function create(
         array $ids,
