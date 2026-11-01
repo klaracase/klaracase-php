@@ -114,7 +114,7 @@ foreach ($run->findings ?? [] as $finding) {
             echo "found: $cited\n";
             break;
         case 'not_found':
-            // Not in the corpus. This is not a claim that the citation is fabricated.
+            // Not in the corpus. This does not mean the citation is invented.
             echo "not found in the corpus: $cited\n";
             break;
         default:
@@ -336,6 +336,16 @@ A smoke script runs the two free endpoints against the live API. It needs a toke
 ```bash
 KLARACASE_API_TOKEN=klc_your_token_here composer smoke
 ```
+
+## Stability and privacy
+
+This SDK is 0.x and tracks API release 0.95.0. Minor versions may change the public surface until 1.0. Every change is
+listed in [CHANGELOG.md](CHANGELOG.md). All Klaracase SDKs bump together when the API contract changes.
+
+The SDK sends no telemetry. The only thing it adds to a request is the User-Agent header
+`klaracase-php/<version> PHP/<version>`, for example `klaracase-php/0.1.0 PHP/8.4.1`.
+
+Klaracase is not affiliated with any court or with the federal government.
 
 ## Links
 
