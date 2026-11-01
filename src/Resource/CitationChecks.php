@@ -27,7 +27,7 @@ final class CitationChecks extends AbstractResource
 
     /**
      * Check every citation in a German legal text. Costs 2 to 4 credits, by length. The same text again in the
-     * same month costs nothing more. The answer is the finished run.
+     * same credit period costs nothing more. The answer is the finished run.
      *
      * Send exactly one of `$text` and `$documentId`.
      *

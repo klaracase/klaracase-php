@@ -56,6 +56,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   strictness flags; `.gitattributes` with `export-ignore`; CI runs `composer validate --strict`, `composer audit`, a
   `--prefer-lowest` job and a concurrency group; a `composer check` script.
 
+### Docs
+
+- Docs: credit period wording. Credits renew per credit period: the UTC calendar month for free organizations, the paid billing period for subscribers. Unused credits do not roll over. The docs said "calendar month" for every organization.
+
 ### Changed
 
 - `composer.json` requires `psr/log` and a PSR-18 and PSR-17 implementation. The `conflict` entry is gone.

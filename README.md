@@ -220,7 +220,7 @@ $byVerdict = $run->findingsByVerdict(); // array<string, list<Finding>>
 ```
 
 `excerpt()` cuts by Unicode code points, because the offsets (`start_offset`, `end_offset`) count code points, not
-bytes. The price depends on the length of the text. Checking the same text again in the same month costs nothing
+bytes. The price depends on the length of the text. Checking the same text again in the same credit period costs nothing
 more.
 
 ## Uploads and polling
@@ -319,7 +319,7 @@ body, or the `Retry-After` header, or else an exponential backoff of 0.5 s, 1 s,
 - A 402 or any other 4xx is never retried. A 500 or 502 is not retried.
 - A network error with no answer is retried for GET only. A POST whose connection dropped is not repeated on its own.
   Repeating it by hand is free in the same period, because one charge covers each operation and subject once per
-  calendar month.
+  credit period.
 
 `$response->meta->attempts` and `->retriedFor` tell you how many requests a call took and how many seconds the
 client waited.
@@ -374,6 +374,8 @@ Most calls cost credits. These do not: `corpus->coverage`, `corpus->facets`, `ci
 
 Every served answer has `credits` with `metered`, `cost` and `credits_remaining`. `cost` and `credits_remaining` are
 `null` when the account is not metered.
+
+Credits renew per credit period: the UTC calendar month for free organizations, the paid billing period for subscribers. Unused credits do not roll over.
 
 ## Typed responses and enums
 
