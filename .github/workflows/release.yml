@@ -1,0 +1,43 @@
+name: Release
+
+# Packagist needs no publish step.
+#
+# Do this once, by hand, before the first tag:
+#   1. Sign in at https://packagist.org and submit this repository URL ("Submit").
+#   2. Enable the GitHub hook for the repository (Packagist profile, or the repository's
+#      Settings > Webhooks), so Packagist sees every new tag.
+# After that, pushing a tag `v*` is the release. Packagist reads the version from the tag.
+# This workflow only checks that composer.json is valid and that the tag matches the code.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Tag matches Klaracase::VERSION
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(grep -oP "VERSION = '\K[^']+" src/Klaracase.php)"
+          if [ "$tag" != "$version" ]; then
+            echo "Tag v$tag does not match Klaracase::VERSION $version" >&2
+            exit 1
+          fi
