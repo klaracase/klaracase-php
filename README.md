@@ -9,8 +9,9 @@ citation is fabricated.
 
 - Package: `klaracase/klaracase` (Packagist)
 - PHP 8.2 or newer
-- HTTP through any PSR-18 client and PSR-17 factories, found with `php-http/discovery`
+- HTTP through any PSR-18 client and PSR-17 factories
 - Plain PHP. No framework needed.
+- Typed responses: every object, at every depth, is a `final readonly` class. PHPStan level max passes on your code.
 
 This client is a REST client. It does not speak MCP. If your agent or app wants tools, connect its MCP client to
 `https://klaracase.de/mcp` instead. The same token works there.
@@ -21,11 +22,15 @@ This client is a REST client. It does not speak MCP. If your agent or app wants 
 composer require klaracase/klaracase
 ```
 
-The client needs a PSR-18 HTTP client and a PSR-17 factory. If your project has none, install these two:
+The package needs a PSR-18 HTTP client and a PSR-17 factory. Composer refuses the install when your project has
+none. Install these two if you have no preference:
 
 ```bash
 composer require guzzlehttp/guzzle nyholm/psr7
 ```
+
+Guzzle is the best fit: with it, the timeout settings take effect (see Request options). Other PSR-18 clients, such
+as `symfony/http-client` with its `Psr18Client`, work too.
 
 ## Get a token
 
@@ -52,31 +57,47 @@ use Klaracase\Klaracase;
 
 require __DIR__ . '/vendor/autoload.php';
 
-$client = Klaracase::fromEnv(); // reads KLARACASE_API_TOKEN
+$client = Klaracase::fromEnv(); // reads KLARACASE_API_TOKEN; or Klaracase::client($token)
 
 $result = $client->decisions->search('Eigenbedarf Kündigung', court: 'BGH', limit: 5);
 
 foreach ($result->results ?? [] as $hit) {
-    echo $hit['aktenzeichen'], ' ', $hit['court'], ' ', $hit['date'], PHP_EOL;
+    echo $hit->aktenzeichen, ' ', $hit->court, ' ', $hit->date, PHP_EOL;
 }
 
 echo 'Credits left: ', $result->credits?->credits_remaining, PHP_EOL;
 ```
 
-You can also pass the token yourself: `new Klaracase(token: 'klc_your_token_here')`.
+`$hit` is a `DecisionHit`. Its properties carry the API's key names (`aktenzeichen`, `document_type`) and are
+nullable, because a key may be missing. `tests/typing/consumer.php` in this repository is the same code, written for
+PHPStan level max, and CI analyses it.
 
 ### Other calls
 
 ```php
+use Klaracase\Enum\Branch;
+use Klaracase\Enum\Direction;
+use Klaracase\Enum\FacetField;
+use Klaracase\Enum\Section;
+use Klaracase\Enum\Statute;
+
 // Statutes and decisions together
 $client->search('Datenschutz Einwilligung', jurisdiction: 'EU', limit: 3);
 
+// Filters take enums, or plain strings. Dates take 'YYYY-MM-DD' or any DateTimeInterface.
+$client->decisions->search(
+    'Untreue',
+    branch: Branch::Ordentlich,
+    citedStatutes: [Statute::StGB, 'StPO'],
+    dateFrom: new DateTimeImmutable('2020-01-01'),
+);
+
 // One decision: a UUID, an Aktenzeichen or an ECLI
-$decision = $client->decisions->get('VIII ZR 271/17', section: 'Gründe', maxChars: 5000);
+$decision = $client->decisions->get('VIII ZR 271/17', section: Section::Gruende, maxChars: 5000);
 echo $decision->full_text;
 
 // The citation graph around a decision
-$graph = $client->decisions->citations('VIII ZR 271/17', direction: 'incoming');
+$graph = $client->decisions->citations('VIII ZR 271/17', direction: Direction::Incoming);
 
 // One statute norm
 $norm = $client->norms->get('§ 535 BGB');
@@ -86,83 +107,157 @@ $article = $client->norms->get('Art. 6 DSGVO', jurisdiction: 'EU');
 $package = $client->datapackages->create(['VIII ZR 271/17', '1 StR 185/01'], fullText: false);
 
 // What the corpus holds (free)
-$client->corpus->coverage(branch: 'ordentlich', top: 5);
-$client->corpus->facets('court_name', prefix: 'BG');
+$client->corpus->coverage(branch: Branch::Ordentlich, top: 5);
+$client->corpus->facets(FacetField::CourtName, prefix: 'BG');
 ```
 
-Array and boolean filters are typed. `citedStatutes` takes a list such as `['StGB', 'StPO']`.
-An argument you leave out, or set to `null`, is not sent.
+An argument you leave out, or set to `null`, is not sent. Path values, such as an Aktenzeichen with a slash, are
+percent-encoded for you.
 
-Path values, such as an Aktenzeichen with a slash, are percent-encoded for you.
+The client refuses some wrong arguments before it sends a request. It throws `ValidationException` with the code
+`client_validation` for: no ids or more than 10 ids, both or neither of `text` and `documentId`, a date that is not
+`YYYY-MM-DD`, `dateFrom` after `dateTo`, and `rnFrom` after `rnTo`. It does not check enum membership or ranges the
+server owns; the server answers those with a 422.
+
+## Factory
+
+`Klaracase::client($token)` covers the common case. For more settings use the factory. Every `with...` call returns
+a changed copy.
+
+```php
+$client = Klaracase::factory()
+    ->withToken($token)                  // default: the KLARACASE_API_TOKEN variable
+    ->withBaseUrl('https://klaracase.de/api/v1')
+    ->withTimeout(10.0)                  // Guzzle clients; see Request options
+    ->withMaxRetries(1)
+    ->withUserAgentSuffix('my-app/2.1')  // appended to the User-Agent
+    ->withHeader('X-Team', 'research')   // sent with every request
+    ->withLogger($psr3Logger)            // see Logging
+    ->withHttpClient($psr18Client)       // also withRequestFactory(), withStreamFactory()
+    ->withMiddleware($traceMiddleware)   // wraps every HTTP attempt
+    ->make();
+```
+
+A middleware is `fn (RequestInterface $request, callable $next): ResponseInterface`. The first one added is the
+outermost. `withDeprecationHandler()`, `withSleeper()` and `withClock()` complete the list. `new Klaracase(...)` with
+the same named arguments still works.
+
+## Request options
+
+Every method takes `options: RequestOptions::with(...)` as its last argument. The same object works as a client
+default through the factory (`withTimeout`, `withMaxRetries`, `withHeader`).
+
+```php
+use Klaracase\RequestOptions;
+
+$client->citationChecks->create(
+    text: $text,
+    options: RequestOptions::with(
+        timeout: 60.0,                         // seconds
+        maxRetries: 0,                         // for this call only
+        extraHeaders: ['X-Request-Id' => $id],
+        extraQuery: ['trace' => '1'],
+    ),
+);
+```
+
+The per-call `timeout` reaches the HTTP client when it is a Guzzle client, which is what the SDK builds when Guzzle
+is installed. PSR-18 has no hook for a timeout per request. With any other client the timeout of that client stays in
+force, and you set it when you build that client.
+
+## Pagination
+
+`search()` takes `page`. To walk the pages, use a generator:
+
+```php
+foreach ($client->decisions->searchAll('Untreue', maxPages: 3, court: 'BGH') as $hit) {
+    echo $hit->aktenzeichen, PHP_EOL;
+}
+
+foreach ($client->decisions->citationsAll('VIII ZR 271/17', maxPages: 2) as $edge) {
+    echo $edge->reference_canonical, PHP_EOL;
+}
+```
+
+Paging the same query within a credit period costs no extra credits. A changed query, filter or mode is a new charge.
+Check `credits` on each response.
+
+`maxPages` is required. It guards against a runaway walk. The client clamps it to 10 for search and 20 for
+citations, the last pages the server serves. The walk stops when a page is empty or the totals say no page follows,
+and stops fetching when you stop reading. A result also has `hasMore()` and `nextPage()` if you page by hand.
 
 ## Check the citations in a text
 
 ```php
+use Klaracase\Enum\Verdict;
+
 $run = $client->citationChecks->create(
     text: $text, // 50 to 20,000 characters of German legal text
-    referenceDate: '2024-05-01', // optional
+    referenceDate: '2024-05-01', // optional; a DateTimeInterface works too
 );
 
 foreach ($run->findings ?? [] as $finding) {
-    $verdict = $finding['verdict'] ?? 'unknown';
-    $cited = $finding['raw_text'] ?? '';
+    $cited = $finding->excerpt($text); // the span of your text this finding points at
 
-    switch ($verdict) {
-        case 'verified_corpus':
-        case 'verified_external':
+    switch ($finding->verdictEnum()) {
+        case Verdict::VerifiedCorpus:
+        case Verdict::VerifiedExternal:
             // The citation exists. This does not prove the quote or the legal point is right.
             echo "found: $cited\n";
             break;
-        case 'not_found':
+        case Verdict::NotFound:
             // Not in the corpus. This does not mean the citation is invented.
             echo "not found in the corpus: $cited\n";
             break;
         default:
-            // out_of_coverage, ambiguous, unverifiable, discrepancy, or a verdict added later.
-            echo "$verdict: $cited\n";
+            // out_of_coverage, ambiguous, unverifiable, discrepancy, or a verdict added later (Verdict::Unknown).
+            echo "{$finding->verdict}: $cited\n";
     }
 }
 
-print_r($run->verdict_counts);
+echo $run->count(Verdict::NotFound), " citations not found\n";
+$byVerdict = $run->findingsByVerdict(); // array<string, list<Finding>>
 ```
 
-The verdicts are `verified_corpus`, `verified_external`, `not_found`, `out_of_coverage`, `ambiguous`,
-`unverifiable` and `discrepancy`. Values are plain strings. The client never throws on a value it does not know.
+`excerpt()` cuts by Unicode code points, because the offsets (`start_offset`, `end_offset`) count code points, not
+bytes. The price depends on the length of the text. Checking the same text again in the same month costs nothing
+more.
 
-Offsets in each finding (`start_offset`, `end_offset`) are Unicode codepoint offsets into the text you sent.
-
-The price depends on the length of the text. Checking the same text again in the same month costs nothing more.
-
-### Check an uploaded file
+## Uploads and polling
 
 ```php
-$receipt = $client->citationCheckDocuments->upload(
-    file_get_contents('schriftsatz.pdf'), // the file bytes, a stream resource, or a PSR-7 stream
-    'schriftsatz.pdf',
-    'application/pdf',
-);
+// A file on disk. The name and content type come from the path.
+$run = $client->citationChecks->createFromFile('schriftsatz.pdf', referenceDate: '2024-05-01');
 
-$ready = $client->citationCheckDocuments->waitUntilReady($receipt->id, pollInterval: 2.0, timeout: 120.0);
+// The same in steps
+$receipt = $client->citationCheckDocuments->upload('schriftsatz.pdf');
+$ready = $client->citationCheckDocuments->waitUntilReady($receipt, pollInterval: 2.0, timeout: 120.0);
 echo 'Price: ', $ready->quoted_credits, " credits\n";
-
 $run = $client->citationChecks->create(documentId: $ready->id);
+
+// Bytes you already hold
+$receipt = $client->citationCheckDocuments->uploadBytes($bytes, 'schriftsatz.pdf');
 ```
 
-Uploads are free. PDF, DOCX, Markdown and plain text are accepted, up to 25 MB. An unused upload expires after
-48 hours. `waitUntilReady()` throws `DocumentFailedException` when extraction fails, and `DocumentTimeoutException`
-when the time runs out.
+A string given to `upload()` is a path, and the file is read. It is never sent as content. A path that does not
+exist or cannot be read throws `ValidationException` (code `client_validation`) before any request. Use
+`uploadBytes()` to send bytes.
+
+Uploads are free. PDF, DOCX, Markdown and plain text are accepted, up to 25 MB. An unused upload expires after 48
+hours. `waitUntilReady()` takes a receipt or an id. It throws `DocumentFailedException` when extraction fails, and
+`DocumentTimeoutException` when the time runs out.
 
 Send exactly one of `text` and `documentId`. The client refuses both or neither before it sends a request.
 
 ## Handle errors
 
-Every API error is an exception that extends `Klaracase\Exception\KlaracaseException`.
+Every API error is an exception that extends `Klaracase\Exception\KlaracaseException`. Both it and
+`ConfigurationException` implement the marker interface `KlaracaseThrowable`, so one catch can cover both.
 
 ```php
 use Klaracase\Exception\InsufficientCreditsException;
 use Klaracase\Exception\KlaracaseException;
 use Klaracase\Exception\RateLimitException;
-use Klaracase\Exception\TransportException;
 use Klaracase\Exception\ValidationException;
 
 try {
@@ -170,13 +265,14 @@ try {
 } catch (InsufficientCreditsException $e) {
     echo "This call costs {$e->cost} credits. You have {$e->balance}.\n";
 } catch (RateLimitException $e) {
-    echo "Slow down. Try again in {$e->retryAfterSeconds} seconds.\n";
+    echo 'Try again in ', $e->retryAfterSeconds ?? 0, " seconds.\n"; // null when the server named no wait
 } catch (ValidationException $e) {
     print_r($e->errors); // field name => list of messages
-} catch (TransportException $e) {
-    echo "No answer from Klaracase: {$e->getMessage()}\n";
 } catch (KlaracaseException $e) {
-    echo "{$e->status} {$e->errorCode}: {$e->getMessage()}\n";
+    if ($e->isRetryable()) {
+        // a rate limit (not the daily volume cap), a 503, or no answer at all
+    }
+    error_log(json_encode($e->toArray(), JSON_THROW_ON_ERROR)); // code, status, detail, retry_after_seconds
 }
 ```
 
@@ -188,9 +284,10 @@ try {
 | `ConflictException` | 409 |
 | `ValidationException` | 422, with `errors`; also raised before any request when your arguments are wrong (`errorCode` is `client_validation`) |
 | `InsufficientCreditsException` | 402, with `cost` and `balance` |
-| `RateLimitException` | 429, with `retryAfterSeconds` |
+| `RateLimitException` | 429, with `retryAfterSeconds` (nullable) |
 | `ServiceUnavailableException` | 503 |
 | `ApiException` | any other status |
+| `ResponseShapeException` | a success answer without `id`, `reference` or `field` |
 | `TransportException` | no answer came: connection, DNS, TLS |
 | `TimeoutException` | a `TransportException` for a timeout |
 | `DocumentFailedException` | `waitUntilReady()` saw status `failed`; read `document` |
@@ -198,8 +295,13 @@ try {
 | `ConfigurationException` | no token, a bad base URL, or no HTTP client. It does not extend `KlaracaseException`. |
 
 Fields on every `KlaracaseException`: `status`, `type`, `title`, `detail`, `errorCode` (the problem `code`),
-`apiRelease` and `extra`. `extra` holds every other problem member, such as `unit`, `cap` and `resets_at` on a
-`volume_cap`, or `candidates` on an ambiguous Aktenzeichen. The message is the problem `detail`.
+`apiRelease`, `headers` (lower-case names, never the token), `body` (the whole problem) and `extra` (every member that
+is not `type`, `title`, `status`, `detail` or `code`). Typed shortcuts read from the body, null when absent:
+`candidates` (an ambiguous Aktenzeichen), `successor` (a superseded statute), and `unit`, `cap` and `resetsAt` (a
+`volume_cap`). The message is the problem `detail`.
+
+`isRetryable()` is true for a 429 that is not a `volume_cap`, for a 503, and for a failure to reach the API. It is
+false for everything else. `retryAfterSeconds` stays nullable: write `$e->retryAfterSeconds ?? 0`.
 
 If the server answers with something that is not a problem body, such as an HTML 502 from a proxy, you get an
 `ApiException` with `errorCode` set to `unknown`. `detail` holds the first 1,000 characters of the body.
@@ -219,12 +321,44 @@ body, or the `Retry-After` header, or else an exponential backoff of 0.5 s, 1 s,
   Repeating it by hand is free in the same period, because one charge covers each operation and subject once per
   calendar month.
 
-```php
-$client = new Klaracase(token: 'klc_your_token_here', maxRetries: 0); // no retries
-```
+`$response->meta->attempts` and `->retriedFor` tell you how many requests a call took and how many seconds the
+client waited.
 
 Rate limits: 60 requests a minute per token. Three calls are limited to 10 a minute on top of that:
 `datapackages->create`, `citationChecks->create` and `citationCheckDocuments->upload`.
+
+## Logging
+
+Give the factory a PSR-3 logger. The client writes one debug line per retry (method, path, status, attempt, wait) and
+one warning when the API announces a deprecation. It never logs the token, a header value or a body.
+
+```php
+$client = Klaracase::factory()->withToken($token)->withLogger($logger)->make();
+```
+
+## Queue jobs
+
+A queue worker has its own retry loop. Turn the client's retries off and hand the wait back to the queue:
+
+```php
+public function handle(): void
+{
+    $client = Klaracase::factory()->withToken($this->token)->withMaxRetries(0)->make();
+
+    try {
+        $client->citationChecks->create(text: $this->text);
+    } catch (RateLimitException|ServiceUnavailableException|TransportException $e) {
+        if ($e->isRetryable()) {
+            $this->release($e instanceof RateLimitException ? ($e->retryAfterSeconds ?? 60) : 60);
+
+            return;
+        }
+        throw $e;
+    }
+}
+```
+
+`release()` is the Laravel queue call; other queues have an equivalent.
 
 ## Credits
 
@@ -241,94 +375,68 @@ Most calls cost credits. These do not: `corpus->coverage`, `corpus->facets`, `ci
 Every served answer has `credits` with `metered`, `cost` and `credits_remaining`. `cost` and `credits_remaining` are
 `null` when the account is not metered.
 
-## Responses
+## Typed responses and enums
 
-Each call returns a final readonly class with typed properties. Property names are the API's key names, unchanged
-(`$result->total_available`, `$run->verdict_counts`). Nested rows are plain arrays.
+Each call returns a `final readonly` class. Nested objects are classes too (`Finding`, `CitationEdge`, `Count`), and
+lists are plain `list<T>`. Property names are the API's key names, unchanged (`$result->total_available->value`,
+`$run->verdict_counts`).
 
 ```php
 $result->meta->status;          // HTTP status
 $result->meta->apiRelease;      // X-Klaracase-Api-Release, or null
 $result->meta->requestDuration; // seconds
+$result->meta->headers;         // response headers, lower-case names
 $result->credits?->cost;
-$result->extra;                 // top-level keys this client version does not model
-$result->toArray();             // the decoded body exactly as the API sent it
-$result['results'];             // the same body through ArrayAccess (read only)
+$result->extra;                 // keys this client version does not model
+$result->toArray();             // the body, with the keys in model order and unknown keys last
+json_encode($result);           // the same body as JSON; {} stays {}
 ```
 
-The API only adds keys. A new key lands in `extra` and never breaks your code. If a key is missing or holds an
-unexpected JSON type, its typed property is `null`; `toArray()` still has the raw value.
+The API only adds keys. A new key lands in `extra` at its depth and never breaks your code. If a key is missing, or
+holds an unexpected JSON type, its property is `null`; the raw value of a wrong-typed key stays in `extra`, and
+`nulls` lists the keys that came as an explicit `null`. Identity keys (`id`, `reference`, `field`) are the exception:
+a success answer without them throws `ResponseShapeException`.
 
-## Deprecations
+Enum values stay raw strings on the property. Each has an accessor that returns an enum:
+`$finding->verdictEnum()`, `$run->statusEnum()`, `$result->modeEnum()`. For values the server may extend, such as
+verdicts and statuses, the enum has an `Unknown` case, so a new server value never throws. For the filters that you
+also send (`Mode`, `Branch`, `DocumentType`, `Direction`), an unknown value gives `null`.
 
-When an endpoint is deprecated, the API announces it with `Deprecation` and `Sunset` headers. The client calls the
-`onDeprecation` hook once per process. The default raises an `E_USER_DEPRECATED` notice.
+`$response['key']` still reads the body like an array. It is kept for old code and marked deprecated.
+
+## Testing
+
+`Klaracase\Testing\FakeClient` answers from a queue and records what your code sent. It implements
+`Klaracase\Client`, an interface with the six resources as methods (`$client->decisions()->search(...)`), so type-hint
+`Client` where you want to swap it.
 
 ```php
-use Klaracase\Http\DeprecationNotice;
+use Klaracase\Testing\FakeClient;
+use Klaracase\Testing\Fixtures;
+use Klaracase\Testing\RecordedRequest;
 
-$client = new Klaracase(
-    token: 'klc_your_token_here',
-    onDeprecation: function (DeprecationNotice $notice): void {
-        error_log($notice->message()); // $notice->deprecation, ->sunset, ->link hold the raw header values
-    },
-);
+$client = new FakeClient();
+$client->queue(Fixtures::decisionSearch());
+$client->queue(Fixtures::problem(429, 'rate_limited', ['retry_after_seconds' => 3]));
+
+$result = $client->decisions->search('Eigenbedarf', court: 'BGH');
+// the next call throws RateLimitException
+
+$client->assertSentCount(1);
+$client->assertSent(fn (RecordedRequest $r) => $r->path === '/decisions/search' && $r->query['court'] === 'BGH');
+$client->assertNothingSent();
 ```
 
-## Options
+You can queue a response object, a problem array or an exception. `Fixtures` holds the example bodies of the API
+documentation as response objects. The sleeper and the clock of a `FakeClient` do not wait, so `waitUntilReady()` and
+`createFromFile()` run in no time. `Testing\RecordingSleeper` and `Testing\FakeClock` are public if you build a
+`Klaracase` yourself with `withSleeper()` and `withClock()`. Mocks of the `Client` interface work too.
 
-| Argument | Default | Meaning |
-|---|---|---|
-| `token` | `KLARACASE_API_TOKEN` | A personal access token |
-| `baseUrl` | `https://klaracase.de/api/v1` | API root |
-| `timeout` | `30.0` | Seconds. See the note below. |
-| `maxRetries` | `2` | See Retries |
-| `userAgentSuffix` | `null` | Appended to the `User-Agent`, after a space. Put your app name here. |
-| `httpClient` | discovered | Any PSR-18 client |
-| `requestFactory`, `streamFactory` | discovered | Any PSR-17 factories |
-| `onDeprecation` | notice | See Deprecations |
-| `sleeper`, `clock` | real | Interfaces `Klaracase\Support\Sleeper` and `Clock`. Replace them in tests. |
-
-The `User-Agent` is `klaracase-php/0.1.0 PHP/<version>`.
-
-PSR-18 has no timeout setting. The `timeout` argument applies when the client builds its own Guzzle client. If you
-pass your own `httpClient`, set its timeouts yourself.
-
-## Laravel and other frameworks
-
-The client is plain PHP and has no Laravel dependency. Bind it once in a service provider:
-
-```php
-use Klaracase\Klaracase;
-
-public function register(): void
-{
-    $this->app->singleton(Klaracase::class, fn () => new Klaracase(
-        token: config('services.klaracase.token'),
-        userAgentSuffix: 'my-app/1.0',
-    ));
-}
-```
-
-Add the token to `config/services.php` and read it from your `.env` file:
-
-```php
-'klaracase' => ['token' => env('KLARACASE_API_TOKEN')],
-```
-
-Then type-hint `Klaracase` in a controller, job or command. Pass Laravel's own HTTP client stack through
-`httpClient` only if you need it; any PSR-18 client works. Symfony, Slim and other containers bind it the same way.
-
-## Test your own code
-
-The client takes any PSR-18 client, so you can test with a mock such as `php-http/mock-client`. Pass a recording
-`Sleeper` to skip the waits between retries. This repository's own tests do that, with no network.
+To test the real client against HTTP, use a PSR-18 mock such as `php-http/mock-client`, as this repository does.
 
 ```bash
 composer install
-composer test      # PHPUnit with the shared conformance cases
-composer analyse   # PHPStan, level max
-composer lint      # Pint style check
+composer check     # Pint, PHPStan level max, PHPUnit
 ```
 
 A smoke script runs the two free endpoints against the live API. It needs a token and is not part of the tests:
@@ -337,13 +445,67 @@ A smoke script runs the two free endpoints against the live API. It needs a toke
 KLARACASE_API_TOKEN=klc_your_token_here composer smoke
 ```
 
+## Deprecations
+
+When an endpoint is deprecated, the API announces it with `Deprecation` and `Sunset` headers. The client calls the
+deprecation hook once per process. The default raises an `E_USER_DEPRECATED` notice.
+
+```php
+use Klaracase\Http\DeprecationNotice;
+
+$client = Klaracase::factory()
+    ->withToken($token)
+    ->withDeprecationHandler(function (DeprecationNotice $notice): void {
+        error_log($notice->message()); // $notice->deprecation, ->sunset, ->link hold the raw header values
+    })
+    ->make();
+```
+
+## Laravel
+
+The client is plain PHP and has no Laravel dependency, and there is no separate Laravel package. Bind it once in a
+service provider. Put the token in `config/services.php`:
+
+```php
+'klaracase' => ['token' => env('KLARACASE_API_TOKEN')],
+```
+
+```php
+use Klaracase\Client;
+use Klaracase\Klaracase;
+
+public function register(): void
+{
+    $this->app->singleton(Klaracase::class, fn () => Klaracase::factory()
+        ->withToken((string) config('services.klaracase.token'))
+        ->withUserAgentSuffix('my-app/1.0')
+        ->withLogger($this->app->make('log'))
+        ->make());
+    $this->app->alias(Klaracase::class, Client::class);
+}
+```
+
+Then type-hint `Client` in a controller, job or command. In tests, `$this->app->instance(Client::class, new FakeClient())`.
+Symfony, Slim and other containers bind it the same way.
+
+## Requirements
+
+- PHP 8.2 to 8.5, with `ext-json` and `ext-mbstring`
+- A PSR-18 client and a PSR-17 factory (`psr/http-client-implementation`, `psr/http-factory-implementation`)
+- `psr/log` 1, 2 or 3
+
+The `User-Agent` is `klaracase-php/0.1.0 PHP/<version>`.
+
+## Versioning
+
+This SDK is 0.x and tracks API release 0.95.0. In 0.x a minor version may change the public surface; a patch version
+only fixes bugs. After 1.0 the package follows semantic versioning. Every change is listed in
+[CHANGELOG.md](CHANGELOG.md). All Klaracase SDKs bump together when the API contract changes.
+
 ## Stability and privacy
 
-This SDK is 0.x and tracks API release 0.95.0. Minor versions may change the public surface until 1.0. Every change is
-listed in [CHANGELOG.md](CHANGELOG.md). All Klaracase SDKs bump together when the API contract changes.
-
 The SDK sends no telemetry. The only thing it adds to a request is the User-Agent header
-`klaracase-php/<version> PHP/<version>`, for example `klaracase-php/0.1.0 PHP/8.4.1`.
+`klaracase-php/<version> PHP/<version>`, for example `klaracase-php/0.1.0 PHP/8.4.1`, plus what you add yourself.
 
 Klaracase is not affiliated with any court or with the federal government.
 
