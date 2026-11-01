@@ -1,0 +1,67 @@
+{
+    "name": "klaracase/klaracase",
+    "description": "Official PHP client for the Klaracase REST API: German court decisions, statutes and citation checks.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "klaracase",
+        "german law",
+        "legal research",
+        "citation check",
+        "api client",
+        "psr-18"
+    ],
+    "homepage": "https://klaracase.de/docs/api",
+    "support": {
+        "email": "support@klaracase.de",
+        "docs": "https://klaracase.de/docs/api"
+    },
+    "require": {
+        "php": ">=8.2",
+        "ext-json": "*",
+        "php-http/discovery": "^1.19",
+        "psr/http-client": "^1.0",
+        "psr/http-factory": "^1.0",
+        "psr/http-message": "^1.1 || ^2.0"
+    },
+    "require-dev": {
+        "guzzlehttp/guzzle": "^7.8",
+        "laravel/pint": "^1.18",
+        "nyholm/psr7": "^1.8",
+        "php-http/mock-client": "^1.6",
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^11.5"
+    },
+    "conflict": {
+        "guzzlehttp/guzzle": "<7.0"
+    },
+    "suggest": {
+        "guzzlehttp/guzzle": "A PSR-18 client. With it the `timeout` option applies to the default client.",
+        "nyholm/psr7": "PSR-7 and PSR-17 implementation, found through php-http/discovery."
+    },
+    "autoload": {
+        "psr-4": {
+            "Klaracase\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Klaracase\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "lint": "pint --test",
+        "fix": "pint",
+        "analyse": "phpstan analyse --memory-limit=1G",
+        "smoke": "@php scripts/smoke.php"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
