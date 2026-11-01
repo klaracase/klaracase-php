@@ -6,12 +6,17 @@
     "keywords": [
         "klaracase",
         "german law",
+        "german case law",
+        "rechtsprechung",
+        "gesetze",
+        "statutes",
         "legal research",
         "citation check",
+        "mcp",
         "api client",
         "psr-18"
     ],
-    "homepage": "https://klaracase.de",
+    "homepage": "https://klaracase.de/developers?ref=packagist",
     "support": {
         "issues": "https://github.com/klaracase/klaracase-php/issues",
         "source": "https://github.com/klaracase/klaracase-php",
