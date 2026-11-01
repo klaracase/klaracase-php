@@ -11,8 +11,10 @@
         "api client",
         "psr-18"
     ],
-    "homepage": "https://klaracase.de/docs/api",
+    "homepage": "https://klaracase.de",
     "support": {
+        "issues": "https://github.com/klaracase/klaracase-php/issues",
+        "source": "https://github.com/klaracase/klaracase-php",
         "email": "support@klaracase.de",
         "docs": "https://klaracase.de/docs/api"
     },
