@@ -14,8 +14,9 @@ interface Model extends JsonSerializable
 {
     /**
      * @param array<array-key, mixed> $data A decoded JSON object.
+     * @return static
      */
-    public static function fromArray(array $data): static;
+    public static function fromArray(array $data): self;
 
     /**
      * The wire shape: modelled keys that hold a value, explicit nulls, then the unmodelled keys.

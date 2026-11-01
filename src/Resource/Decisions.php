@@ -94,10 +94,10 @@ final class Decisions extends AbstractResource
     /**
      * Search and walk the pages, yielding one decision at a time.
      *
-     * EACH PAGE IS ONE SEARCH CALL AND COSTS 1 CREDIT. That is why `$maxPages` is required: it is the most you
-     * agree to pay for. It is clamped to 10, the last page the server serves. The walk stops at once when a page
-     * comes back empty or when the totals say no page follows, so a short result does not pay for empty pages.
-     * Stop reading the generator and no further page is fetched.
+     * Paging the same query within a credit period costs no extra credits. A changed query, filter or mode is a
+     * new charge. Check `credits` on each response. `$maxPages` is required as a guard against a runaway walk,
+     * and is clamped to 10, the last page the server serves. The walk stops at once when a page comes back empty
+     * or when the totals say no page follows. Stop reading the generator and no further page is fetched.
      *
      * @param non-empty-string $query 2 to 500 characters, German legal-concept phrasing.
      * @param int<1, max> $maxPages Most pages to fetch, at least 1. Values above 10 count as 10.
@@ -250,9 +250,10 @@ final class Decisions extends AbstractResource
      * Walk the citation pages of one decision (depth 1), yielding one edge at a time: the outgoing edges of a
      * page, then the incoming ones.
      *
-     * EACH PAGE IS ONE CALL AND COSTS 2 CREDITS. `$maxPages` is required for that reason. It is clamped to 20, the
-     * last page the server serves. The walk stops when a page has no edges or when `pagination` says no list has
-     * more.
+     * Paging the same decision within a credit period costs no extra credits. A changed decision, direction or
+     * filter is a new charge. Check `credits` on each response. `$maxPages` is required as a guard against a
+     * runaway walk, and is clamped to 20, the last page the server serves. The walk stops when a page has no
+     * edges or when `pagination` says no list has more.
      *
      * @param string $id A UUID, an Aktenzeichen or an ECLI.
      * @param int<1, max> $maxPages Most pages to fetch, at least 1. Values above 20 count as 20.

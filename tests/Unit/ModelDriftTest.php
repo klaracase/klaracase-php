@@ -258,7 +258,7 @@ final readonly class CreditsWithoutRemaining implements Model
     {
     }
 
-    public static function fromArray(array $data): static
+    public static function fromArray(array $data): self
     {
         $r = new Reader($data);
 
@@ -278,7 +278,7 @@ final readonly class CreditsThatDropsUnknownKeys implements Model
     {
     }
 
-    public static function fromArray(array $data): static
+    public static function fromArray(array $data): self
     {
         $r = new Reader($data);
 
@@ -299,7 +299,7 @@ final readonly class CountsAsPlainArray implements Model
     {
     }
 
-    public static function fromArray(array $data): static
+    public static function fromArray(array $data): self
     {
         $r = new Reader($data);
 

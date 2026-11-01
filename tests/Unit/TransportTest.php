@@ -164,7 +164,12 @@ final class TransportTest extends TestCase
             /** @var list<array{string, string, array<array-key, mixed>}> */
             public array $records = [];
 
-            public function log(mixed $level, string|Stringable $message, array $context = []): void
+            /**
+             * @param mixed $level
+             * @param string|Stringable $message
+             * @param array<array-key, mixed> $context
+             */
+            public function log($level, $message, array $context = []): void
             {
                 $this->records[] = [is_string($level) ? $level : '', (string) $message, $context];
             }
@@ -197,7 +202,12 @@ final class TransportTest extends TestCase
             /** @var list<array<array-key, mixed>> */
             public array $contexts = [];
 
-            public function log(mixed $level, string|Stringable $message, array $context = []): void
+            /**
+             * @param mixed $level
+             * @param string|Stringable $message
+             * @param array<array-key, mixed> $context
+             */
+            public function log($level, $message, array $context = []): void
             {
                 $this->contexts[] = $context;
             }
