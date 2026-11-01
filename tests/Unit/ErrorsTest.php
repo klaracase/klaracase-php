@@ -13,7 +13,9 @@ use Klaracase\Exception\KlaracaseThrowable;
 use Klaracase\Exception\NotFoundException;
 use Klaracase\Exception\RateLimitException;
 use Klaracase\Exception\ServiceUnavailableException;
+use Klaracase\Exception\TokenLimitReachedException;
 use Klaracase\Exception\TransportException;
+use Klaracase\Http\ErrorFactory;
 use Klaracase\Testing\Fixtures;
 use Klaracase\Tests\Support\NetworkFailure;
 use Klaracase\Tests\Support\UsesMockClient;
@@ -111,6 +113,52 @@ final class ErrorsTest extends TestCase
         $this->assertSame('something_new', $error->reason);
         $this->assertSame(InsufficientCreditsReason::Unknown, $error->reasonEnum());
         $this->assertSame(InsufficientCreditsReason::PlanCreditsExhausted, InsufficientCreditsReason::fromWire('plan_credits_exhausted'));
+    }
+
+    public function testAKeyLimitIsAnInsufficientCreditsExceptionWithoutCostAndBalance(): void
+    {
+        $error = $this->failure(402, $this->problem('token_limit_reached'));
+
+        $this->assertInstanceOf(TokenLimitReachedException::class, $error);
+        $this->assertContains(InsufficientCreditsException::class, class_parents($error), 'a catch for the 402 still sees it');
+        $this->assertSame('token_limit_reached', $error->errorCode);
+        $this->assertSame(402, $error->status);
+        $this->assertNull($error->cost);
+        $this->assertNull($error->balance);
+        $this->assertNull($error->reason);
+        $this->assertNull($error->topUpUrl);
+        $this->assertSame('credits', $error->unit);
+        $this->assertSame(500, $error->cap);
+        $this->assertSame(500, $error->spent);
+        $this->assertSame('2026-12-01T00:00:00+00:00', $error->resetsAt);
+        $this->assertSame('2026-12-01T00:00:00+00:00', $error->resetsAtDateTime?->format('c'));
+        $this->assertSame('https://klaracase.de/org/api-keys', $error->settingsUrl);
+        $this->assertFalse($error->isRetryable(), 'waiting a few seconds cannot lift a key limit');
+    }
+
+    public function testAKeyLimitToleratesMissingAndOddMembers(): void
+    {
+        $bare = ErrorFactory::fromProblem(402, Fixtures::problem(402, 'token_limit_reached'));
+        $odd = ErrorFactory::fromProblem(402, Fixtures::problem(402, 'token_limit_reached', ['cap' => '500', 'spent' => 12.5, 'resets_at' => 'soon', 'settings_url' => 7]));
+
+        foreach ([$bare, $odd] as $error) {
+            $this->assertInstanceOf(TokenLimitReachedException::class, $error);
+            $this->assertNull($error->unit);
+            $this->assertNull($error->cap);
+            $this->assertNull($error->spent);
+            $this->assertNull($error->resetsAtDateTime);
+            $this->assertNull($error->settingsUrl);
+            $this->assertNull($error->cost);
+        }
+        $this->assertSame('soon', $odd->resetsAt);
+        $this->assertSame('500', $odd->extra['cap'], 'the raw value stays in extra');
+    }
+
+    public function testOnlyTheKeyLimitCodeMakesATokenLimitException(): void
+    {
+        $plain = $this->failure(402, $this->problem('insufficient_credits'));
+
+        $this->assertNotInstanceOf(TokenLimitReachedException::class, $plain);
     }
 
     public function testAVolumeCapCarriesUnitCapAndResetAndIsNotRetryable(): void

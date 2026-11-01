@@ -13,7 +13,7 @@ use Throwable;
  * `insufficient_credits` carries `cost` and `balance`, and since API 0.96.0 often `reason` and `topUpUrl`. Stop, and
  * report the refusal to your user. An organization admin can fix it; a program cannot.
  */
-final class InsufficientCreditsException extends KlaracaseException
+class InsufficientCreditsException extends KlaracaseException
 {
     /** Credits this call costs. Null when the problem has no `cost`. */
     public readonly ?int $cost;

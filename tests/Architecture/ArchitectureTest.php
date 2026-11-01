@@ -21,6 +21,7 @@ final class ArchitectureTest extends TestCase
     private const OPEN_BASES = [
         'Klaracase\Exception\KlaracaseException',
         'Klaracase\Exception\TransportException',
+        'Klaracase\Exception\InsufficientCreditsException',
     ];
 
     /**

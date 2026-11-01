@@ -27,13 +27,13 @@ class KlaracaseException extends RuntimeException implements KlaracaseThrowable
     /** On `statute_superseded`: the abbreviation of the statute that replaced the cited one. */
     public readonly ?string $successor;
 
-    /** On `volume_cap`: the capped unit, `rows` or `documents`. */
+    /** On `volume_cap`: the capped unit, `rows` or `documents`. On `token_limit_reached`: always `credits`. */
     public readonly ?string $unit;
 
-    /** On `volume_cap`: the organization's daily cap for that unit. */
+    /** On `volume_cap`: the organization's daily cap for that unit. On `token_limit_reached`: the credit limit of this API key. */
     public readonly ?int $cap;
 
-    /** On `volume_cap`: when the daily cap resets (midnight Europe/Berlin), as the server wrote it. */
+    /** On `volume_cap`: when the daily cap resets (midnight Europe/Berlin). On `token_limit_reached`: when the key's credit period ends. As the server wrote it. */
     public readonly ?string $resetsAt;
 
     /**

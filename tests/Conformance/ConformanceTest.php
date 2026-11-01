@@ -76,6 +76,11 @@ final class ConformanceTest extends TestCase
         }
     }
 
+    public function testThePackHasAllOneHundredAndSixCases(): void
+    {
+        $this->assertCount(106, iterator_to_array(self::cases()));
+    }
+
     #[DataProvider('cases')]
     public function testCase(string $file): void
     {

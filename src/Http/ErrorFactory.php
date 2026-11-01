@@ -13,6 +13,7 @@ use Klaracase\Exception\KlaracaseException;
 use Klaracase\Exception\NotFoundException;
 use Klaracase\Exception\RateLimitException;
 use Klaracase\Exception\ServiceUnavailableException;
+use Klaracase\Exception\TokenLimitReachedException;
 use Klaracase\Exception\ValidationException;
 use Psr\Http\Message\ResponseInterface;
 
@@ -89,7 +90,7 @@ final class ErrorFactory
 
         return match ($status) {
             401 => new AuthenticationException(...$args),
-            402 => new InsufficientCreditsException(...$args),
+            402 => $code === 'token_limit_reached' ? new TokenLimitReachedException(...$args) : new InsufficientCreditsException(...$args),
             403 => new ForbiddenException(...$args),
             404 => new NotFoundException(...$args),
             409 => new ConflictException(...$args),
