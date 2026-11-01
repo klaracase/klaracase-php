@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- First version of the Klaracase PHP client (0.1.0), for the Klaracase REST API v1 (API release 0.95.0).
+- First version of the Klaracase PHP client (0.1.0), for the Klaracase REST API v1 (API release 0.96.0).
 - All twelve operations: `decisions->search`, `search`, `decisions->get`, `decisions->citations`,
   `norms->get`, `datapackages->create`, `citationChecks->create` and `->get`,
   `citationCheckDocuments->upload`, `->get` and `->waitUntilReady`, `corpus->coverage` and `->facets`.
@@ -17,6 +17,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Retries on HTTP 429 and 503 with backoff, `Retry-After` support and an injectable sleeper and clock.
 - A hook for `Deprecation` and `Sunset` headers.
 - PSR-18 and PSR-17 transport, found with `php-http/discovery`.
+
+#### API release 0.96.0 (additive)
+
+- `Credits::$api_budget`: the optional prepaid API budget as an `ApiBudget` value object with `cents`,
+  `rate_cents_per_credit` and `credits_at_rate`. It is `null` when the server omits it (the organization has no budget
+  and may not load one), never an invented zero. Unknown keys are kept. `cost` counts plan credits and budget together;
+  `credits_remaining` stays the plan credits.
+- `InsufficientCreditsException::$reason` (open vocabulary: `api_budget_empty`, `api_budget_not_available`, and the
+  reserved `plan_credits_exhausted`), `reasonEnum()` with the new `InsufficientCreditsReason` enum (it has an `Unknown`
+  case), and `$topUpUrl`. The URL is for a human organization admin. A program or an AI agent must never open it, and
+  this client never does. The class is no longer `final`.
+- `TokenLimitReachedException` for the 402 `token_limit_reached`: the credit limit of one API key is used up. It extends
+  `InsufficientCreditsException`, so an existing catch still sees it, but `cost` and `balance` are `null`. It reads
+  `unit`, `cap`, `spent`, `resetsAt` (raw string) and `resetsAtDateTime` (`DateTimeImmutable`), and `settingsUrl`, which
+  is also for a human admin. It is never retried and `isRetryable()` is false. Catch it before
+  `InsufficientCreditsException`.
+- Four new conformance cases (106 in all), a drift guard that covers `api_budget`, and the README section "Credits, API
+  budget and limits" with what a program should do for each refusal: stop, and report it to its user.
 
 #### Developer experience round
 
