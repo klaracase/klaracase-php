@@ -9,7 +9,7 @@ use Klaracase\Response\CitationCheckDocument;
 /**
  * `waitUntilReady()` ran out of time. `$document` is the last receipt.
  */
-class DocumentTimeoutException extends KlaracaseException
+final class DocumentTimeoutException extends KlaracaseException
 {
     public function __construct(public readonly CitationCheckDocument $document, float $timeout)
     {

@@ -6,6 +6,8 @@ namespace Klaracase\Http;
 
 use Closure;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 /**
  * Calls the deprecation hook once per process, when an answer carries a `Deprecation` or `Sunset` header.
@@ -23,7 +25,7 @@ final class DeprecationNotifier
     /**
      * @param (callable(DeprecationNotice): void)|null $hook
      */
-    public function __construct(?callable $hook = null)
+    public function __construct(?callable $hook = null, private readonly LoggerInterface $logger = new NullLogger())
     {
         $this->hook = $hook === null
             ? static function (DeprecationNotice $notice): void {
@@ -52,7 +54,9 @@ final class DeprecationNotifier
         }
 
         self::$notified = true;
-        ($this->hook)(new DeprecationNotice($deprecation, $sunset, self::header($response, 'Link'), $method, $path));
+        $notice = new DeprecationNotice($deprecation, $sunset, self::header($response, 'Link'), $method, $path);
+        $this->logger->warning($notice->message(), ['method' => $method, 'path' => $path, 'deprecation' => $deprecation, 'sunset' => $sunset]);
+        ($this->hook)($notice);
     }
 
     private static function header(ResponseInterface $response, string $name): ?string

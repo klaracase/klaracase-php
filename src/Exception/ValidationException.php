@@ -9,13 +9,15 @@ use Throwable;
 /**
  * HTTP 422, or a client-side refusal before any request (`errorCode` is `client_validation`, `status` is null).
  */
-class ValidationException extends KlaracaseException
+final class ValidationException extends KlaracaseException
 {
     /** @var array<string, list<string>> Field name to messages, from the `errors` member. */
     public readonly array $errors;
 
     /**
      * @param array<string, mixed> $extra
+     * @param array<string, list<string>> $headers
+     * @param array<string, mixed> $body
      */
     public function __construct(
         string $message,
@@ -27,8 +29,10 @@ class ValidationException extends KlaracaseException
         ?string $apiRelease = null,
         array $extra = [],
         ?Throwable $previous = null,
+        array $headers = [],
+        array $body = [],
     ) {
-        parent::__construct($message, $status, $type, $title, $detail, $errorCode, $apiRelease, $extra, $previous);
+        parent::__construct($message, $status, $type, $title, $detail, $errorCode, $apiRelease, $extra, $previous, $headers, $body);
 
         $errors = [];
         $raw = $extra['errors'] ?? null;

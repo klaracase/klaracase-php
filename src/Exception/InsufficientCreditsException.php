@@ -9,7 +9,7 @@ use Throwable;
 /**
  * HTTP 402: the organization has too few credits. Never retried.
  */
-class InsufficientCreditsException extends KlaracaseException
+final class InsufficientCreditsException extends KlaracaseException
 {
     /** Credits this call costs. */
     public readonly ?int $cost;
@@ -19,6 +19,8 @@ class InsufficientCreditsException extends KlaracaseException
 
     /**
      * @param array<string, mixed> $extra
+     * @param array<string, list<string>> $headers
+     * @param array<string, mixed> $body
      */
     public function __construct(
         string $message,
@@ -30,8 +32,10 @@ class InsufficientCreditsException extends KlaracaseException
         ?string $apiRelease = null,
         array $extra = [],
         ?Throwable $previous = null,
+        array $headers = [],
+        array $body = [],
     ) {
-        parent::__construct($message, $status, $type, $title, $detail, $errorCode, $apiRelease, $extra, $previous);
+        parent::__construct($message, $status, $type, $title, $detail, $errorCode, $apiRelease, $extra, $previous, $headers, $body);
 
         $this->cost = is_int($extra['cost'] ?? null) ? $extra['cost'] : null;
         $this->balance = is_int($extra['balance'] ?? null) ? $extra['balance'] : null;

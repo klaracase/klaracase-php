@@ -1,5 +1,20 @@
+includes:
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+    - vendor/phpstan/phpstan-phpunit/extension.neon
+    - vendor/phpstan/phpstan-phpunit/rules.neon
+    - vendor/phpstan/phpstan-deprecation-rules/rules.neon
+
 parameters:
     level: max
+    phpVersion:
+        min: 80200
+        max: 80500
+    # The public methods check what their PHPDoc promises (a non-empty id list, a page of 1 or more), so a
+    # PHPDoc type is not taken as certain.
+    treatPhpDocTypesAsCertain: false
+    strictRules:
+        # PHPUnit assertions are written $this->assertSame(); that is the style of PHPUnit itself.
+        dynamicCallOnStaticMethod: false
     paths:
         - src
         - tests

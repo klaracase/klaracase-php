@@ -9,7 +9,7 @@ use Throwable;
 /**
  * The HTTP client gave up waiting for an answer.
  */
-class TimeoutException extends TransportException
+final class TimeoutException extends TransportException
 {
     public static function wrap(Throwable $previous): self
     {

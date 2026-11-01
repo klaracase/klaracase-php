@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Klaracase\Tests\Support;
+namespace Klaracase\Testing;
 
 use Klaracase\Support\Sleeper;
 
 /**
- * Records every wait, returns at once, and moves the fake clock forward by the wait.
+ * Records every wait, returns at once, and moves the test clock forward by the wait. A polling test then runs in
+ * no time and can still read how long the code would have waited.
  */
 final class RecordingSleeper implements Sleeper
 {

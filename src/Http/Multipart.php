@@ -15,8 +15,16 @@ final readonly class Multipart
 
     public string $body;
 
-    public function __construct(string $field, string $filename, string $fileContentType, string $contents)
-    {
+    public function __construct(
+        public string $field,
+        public string $filename,
+        public string $fileContentType,
+        public string $contents,
+    ) {
+        $field = $this->field;
+        $filename = $this->filename;
+        $fileContentType = $this->fileContentType;
+        $contents = $this->contents;
         $boundary = 'klaracase-' . bin2hex(random_bytes(16));
         $this->contentType = 'multipart/form-data; boundary=' . $boundary;
         $this->body = '--' . $boundary . "\r\n"

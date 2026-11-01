@@ -9,7 +9,7 @@ use Klaracase\Response\CitationCheckDocument;
 /**
  * `waitUntilReady()` saw the upload end in status `failed`. `errorCode` mirrors the receipt's `error_code`.
  */
-class DocumentFailedException extends KlaracaseException
+final class DocumentFailedException extends KlaracaseException
 {
     public function __construct(public readonly CitationCheckDocument $document)
     {

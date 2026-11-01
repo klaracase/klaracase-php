@@ -49,7 +49,12 @@ final class ErrorFactory
             $title = is_string($decoded['title'] ?? null) ? $decoded['title'] : null;
             $detail = is_string($decoded['detail'] ?? null) ? $decoded['detail'] : null;
             $code = $decoded['code'];
+            $problem = [];
+            foreach ($decoded as $key => $value) {
+                $problem[(string) $key] = $value;
+            }
         } else {
+            $problem = [];
             $extra = [];
             $type = null;
             $title = null;
@@ -59,13 +64,15 @@ final class ErrorFactory
 
         $message = $detail !== null && $detail !== '' ? $detail : ($title ?? sprintf('Klaracase API error (HTTP %d).', $status));
 
-        return self::build($status, $message, $type, $title, $detail, $code, $apiRelease, $extra, self::retryAfterHeader($response));
+        return self::build($status, $message, $type, $title, $detail, $code, $apiRelease, $extra, self::retryAfterHeader($response), self::headers($response), $problem);
     }
 
     /**
      * @param array<string, mixed> $extra
+     * @param array<string, list<string>> $headers
+     * @param array<string, mixed> $problem
      */
-    private static function build(int $status, string $message, ?string $type, ?string $title, ?string $detail, string $code, ?string $apiRelease, array $extra, ?int $retryAfterHeader): KlaracaseException
+    private static function build(int $status, string $message, ?string $type, ?string $title, ?string $detail, string $code, ?string $apiRelease, array $extra, ?int $retryAfterHeader, array $headers, array $problem): KlaracaseException
     {
         $args = [
             'message' => $message,
@@ -76,6 +83,8 @@ final class ErrorFactory
             'errorCode' => $code,
             'apiRelease' => $apiRelease,
             'extra' => $extra,
+            'headers' => $headers,
+            'body' => $problem,
         ];
 
         return match ($status) {
@@ -89,6 +98,45 @@ final class ErrorFactory
             503 => new ServiceUnavailableException(...$args),
             default => new ApiException(...$args),
         };
+    }
+
+    /**
+     * The exception for a problem body that is already decoded. Used by the test double.
+     *
+     * @param array<string, mixed> $problem
+     * @param array<string, list<string>> $headers
+     */
+    public static function fromProblem(int $status, array $problem, array $headers = []): KlaracaseException
+    {
+        $extra = array_diff_key($problem, array_flip(self::PROBLEM_MEMBERS));
+        $type = is_string($problem['type'] ?? null) ? $problem['type'] : null;
+        $title = is_string($problem['title'] ?? null) ? $problem['title'] : null;
+        $detail = is_string($problem['detail'] ?? null) ? $problem['detail'] : null;
+        $code = is_string($problem['code'] ?? null) ? $problem['code'] : 'unknown';
+        $message = $detail !== null && $detail !== '' ? $detail : ($title ?? sprintf('Klaracase API error (HTTP %d).', $status));
+        $header = $headers['retry-after'][0] ?? null;
+        $retryAfter = is_string($header) && ctype_digit($header) ? (int) $header : null;
+        $release = $headers['x-klaracase-api-release'][0] ?? null;
+
+        return self::build($status, $message, $type, $title, $detail, $code, $release, $extra, $retryAfter, $headers, $problem);
+    }
+
+    /**
+     * Every response header with a lower-case name. The `authorization` header is never copied.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function headers(ResponseInterface $response): array
+    {
+        $headers = [];
+        foreach ($response->getHeaders() as $name => $values) {
+            $lower = strtolower((string) $name);
+            if ($lower !== 'authorization') {
+                $headers[$lower] = array_values($values);
+            }
+        }
+
+        return $headers;
     }
 
     /**

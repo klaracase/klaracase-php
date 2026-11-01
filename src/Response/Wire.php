@@ -26,7 +26,9 @@ trait Wire
      */
     public function jsonSerialize(): array|stdClass
     {
-        return $this->wire(true) ?: new stdClass();
+        $wire = $this->wire(true);
+
+        return $wire === [] ? new stdClass() : $wire;
     }
 
     /**

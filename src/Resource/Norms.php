@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Klaracase\Resource;
 
 use Klaracase\Http\Path;
+use Klaracase\Http\Request;
+use Klaracase\RequestOptions;
 use Klaracase\Response\Norm;
 
 /**
@@ -17,13 +19,14 @@ final class Norms extends AbstractResource
      *
      * @param string $reference For example `§ 535 BGB` or `Art. 6 DSGVO`, at most 120 characters.
      * @param string|null $jurisdiction DE or EU. Read only when the abbreviation is ambiguous.
+     * @param RequestOptions|null $options Timeout, retries, extra headers and query for this call.
      */
-    public function get(string $reference, ?string $jurisdiction = null): Norm
+    public function get(string $reference, ?string $jurisdiction = null, ?RequestOptions $options = null): Norm
     {
-        [$body, $meta] = $this->transport->send('GET', '/norms/' . Path::segment($reference), [
+        $response = $this->call(new Request('GET', '/norms/' . Path::segment($reference), [
             'jurisdiction' => $jurisdiction,
-        ]);
+        ]), $options);
 
-        return Norm::fromArray($body, $meta);
+        return Norm::fromArray($response->body, $response->meta);
     }
 }

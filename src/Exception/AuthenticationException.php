@@ -7,6 +7,6 @@ namespace Klaracase\Exception;
 /**
  * HTTP 401: the token is missing, expired, revoked or not a personal access token.
  */
-class AuthenticationException extends KlaracaseException
+final class AuthenticationException extends KlaracaseException
 {
 }

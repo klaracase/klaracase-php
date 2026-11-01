@@ -7,6 +7,6 @@ namespace Klaracase\Exception;
 /**
  * HTTP 404. Read `$errorCode` for the reason: `not_found`, `statute_superseded` (see `$extra['successor']`), and so on.
  */
-class NotFoundException extends KlaracaseException
+final class NotFoundException extends KlaracaseException
 {
 }

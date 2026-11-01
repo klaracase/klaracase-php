@@ -8,23 +8,25 @@ use Generator;
 use Http\Message\RequestMatcher;
 use Http\Mock\Client as MockClient;
 use Klaracase\Exception\KlaracaseException;
+use Klaracase\Exception\ValidationException;
 use Klaracase\Http\DeprecationNotice;
 use Klaracase\Klaracase;
 use Klaracase\Support\Clock;
 use Klaracase\Support\NativeSleeper;
 use Klaracase\Support\Sleeper;
 use Klaracase\Support\SystemClock;
+use Klaracase\Testing\FakeClock;
+use Klaracase\Testing\RecordingSleeper;
 use Klaracase\Tests\Support\Canonical;
-use Klaracase\Tests\Support\FakeClock;
 use Klaracase\Tests\Support\FieldPath;
 use Klaracase\Tests\Support\Json;
 use Klaracase\Tests\Support\NetworkFailure;
-use Klaracase\Tests\Support\RecordingSleeper;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use ReflectionMethod;
 use Throwable;
 
 /**
@@ -36,6 +38,13 @@ final class ConformanceTest extends TestCase
     private const FIXTURES = __DIR__ . '/../fixtures';
 
     private const TOKEN = 'test_token_123';
+
+    /**
+     * Cases whose arguments this SDK refuses before any request, because the pack lets the server answer them
+     * and the SDK checks them first (`dateFrom` after `dateTo`). They expect a `client_validation` error and zero
+     * requests here. The 422 mapping they cover is tested in ClientTest with a valid call.
+     */
+    private const REFUSED_BY_THE_CLIENT = ['errors.validation_failed_multiple'];
 
     private const BASE = 'http://127.0.0.1:9/api/v1';
 
@@ -101,6 +110,15 @@ final class ConformanceTest extends TestCase
             $error = $e;
         }
 
+        if (in_array(basename($file, '.json'), self::REFUSED_BY_THE_CLIENT, true)) {
+            $this->assertInstanceOf(ValidationException::class, $error);
+            $this->assertSame('client_validation', $error->errorCode);
+            $this->assertNull($error->status);
+            $this->assertCount(0, $mock->getRequests(), 'the client refuses before any request');
+
+            return;
+        }
+
         $this->assertRequests($expect, $mock);
         if ($sleeper instanceof RecordingSleeper && array_key_exists('sleeps', $expect)) {
             $this->assertSleeps(array_values(Json::array($expect['sleeps'])), $sleeper->sleeps);
@@ -159,25 +177,36 @@ final class ConformanceTest extends TestCase
         }
 
         $method = FieldPath::camel(Json::string($sdk['method']));
-        if ($sdk['group'] === null) {
-            return $client->$method(...$args);
+        if ($method === 'upload') {
+            $method = 'uploadBytes';
         }
-        $group = FieldPath::camel(Json::string($sdk['group']));
-        $resource = $client->$group;
-        $this->assertIsObject($resource);
+        $target = match ($sdk['group']) {
+            null => $client,
+            'decisions' => $client->decisions,
+            'norms' => $client->norms,
+            'datapackages' => $client->datapackages,
+            'citation_checks' => $client->citationChecks,
+            'citation_check_documents' => $client->citationCheckDocuments,
+            'corpus' => $client->corpus,
+            default => $this->fail('Unknown group ' . Json::string($sdk['group'])),
+        };
 
-        return $resource->$method(...$args);
+        return (new ReflectionMethod($target, $method))->invokeArgs($target, $args);
     }
 
     /**
-     * The pack names the argument by its API parameter. Two methods call it `id` in PHP.
+     * The pack names the argument by its API parameter. In PHP `upload` with file content is `uploadBytes(bytes:)`,
+     * and `waitUntilReady` takes a receipt or an id as `documentOrId`.
      *
      * @param array<array-key, mixed> $sdk
      */
     private static function argumentName(array $sdk, string $name): string
     {
         if ($sdk['group'] === 'citation_check_documents' && $name === 'document_id') {
-            return 'id';
+            return $sdk['method'] === 'wait_until_ready' ? 'documentOrId' : 'id';
+        }
+        if ($sdk['group'] === 'citation_check_documents' && $sdk['method'] === 'upload' && $name === 'file') {
+            return 'bytes';
         }
 
         return FieldPath::camel($name);

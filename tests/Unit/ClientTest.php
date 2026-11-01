@@ -32,6 +32,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use ReflectionClass;
 use RuntimeException;
+use SplFileInfo;
 
 final class ClientTest extends TestCase
 {
@@ -289,35 +290,92 @@ final class ClientTest extends TestCase
         $this->assertTrue((new ReflectionClass(KlaracaseException::class))->isSubclassOf(RuntimeException::class));
     }
 
-    public function testAnUploadAcceptsBytesAResourceAndAStream(): void
+    public function testUploadBytesSendsTheBytesAndEscapesTheFilename(): void
     {
         $bytes = "%PDF-1.4\n\xFF\x00binary\n";
-        $stream = fopen('php://memory', 'r+');
-        $this->assertIsResource($stream);
-        fwrite($stream, $bytes);
-        rewind($stream);
+        $this->queue(202, $this->example('citation-check-documents.store'));
 
-        $sources = ['string' => $bytes, 'resource' => $stream, 'psr7' => $this->factory->createStream($bytes)];
-        foreach ($sources as $label => $source) {
-            $this->queue(202, $this->example('citation-check-documents.store'));
-            $this->client()->citationCheckDocuments->upload($source, 'a "quoted"\r\nname.pdf', 'application/pdf');
+        $this->client()->citationCheckDocuments->uploadBytes($bytes, 'a "quoted"\r\nname.pdf', 'application/pdf');
 
-            $request = $this->lastRequest();
-            $body = (string) $request->getBody();
-            $this->assertStringContainsString($bytes, $body, $label);
-            $this->assertStringContainsString('filename="a %22quoted%22\r\nname.pdf"', $body, $label);
-            $this->assertStringStartsWith('multipart/form-data; boundary=', $request->getHeaderLine('Content-Type'));
+        $request = $this->lastRequest();
+        $body = (string) $request->getBody();
+        $this->assertStringContainsString($bytes, $body);
+        $this->assertStringContainsString('filename="a %22quoted%22\r\nname.pdf"', $body);
+        $this->assertStringStartsWith('multipart/form-data; boundary=', $request->getHeaderLine('Content-Type'));
+    }
+
+    public function testUploadReadsAPathAndTakesNameAndTypeFromIt(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'klc');
+        $this->assertIsString($path);
+        $pdf = $path . '.pdf';
+        rename($path, $pdf);
+        file_put_contents($pdf, '%PDF-1.4 brief');
+        try {
+            foreach ([$pdf, new SplFileInfo($pdf)] as $source) {
+                $this->queue(202, $this->example('citation-check-documents.store'));
+                $this->client()->citationCheckDocuments->upload($source);
+
+                $body = (string) $this->lastRequest()->getBody();
+                $this->assertStringContainsString('%PDF-1.4 brief', $body);
+                $this->assertStringContainsString('filename="' . basename($pdf) . '"', $body);
+                $this->assertStringContainsString("Content-Type: application/pdf\r\n", $body);
+            }
+        } finally {
+            unlink($pdf);
         }
     }
 
-    public function testAnUploadOfAnotherTypeIsRefusedBeforeAnyRequest(): void
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function extensions(): array
     {
+        return [
+            'pdf' => ['a.pdf', 'application/pdf'],
+            'docx' => ['a.DOCX', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+            'md' => ['a.md', 'text/markdown'],
+            'txt' => ['a.txt', 'text/plain'],
+        ];
+    }
+
+    #[DataProvider('extensions')]
+    public function testUploadBytesInfersTheContentTypeFromTheFilename(string $filename, string $expected): void
+    {
+        $this->queue(202, $this->example('citation-check-documents.store'));
+
+        $this->client()->citationCheckDocuments->uploadBytes('x', $filename);
+
+        $this->assertStringContainsString('Content-Type: ' . $expected . "\r\n", (string) $this->lastRequest()->getBody());
+    }
+
+    public function testAPathThatDoesNotExistIsRefusedBeforeAnyRequestAndPointsAtUploadBytes(): void
+    {
+        foreach (['/no/such/brief.pdf', "%PDF-1.4\nbytes passed by mistake"] as $notAPath) {
+            try {
+                $this->client()->citationCheckDocuments->upload($notAPath);
+                $this->fail('expected an exception');
+            } catch (ValidationException $e) {
+                $this->assertSame('client_validation', $e->errorCode);
+                $this->assertStringContainsString('uploadBytes', $e->getMessage());
+            }
+        }
+        $this->assertCount(0, $this->mock->getRequests());
+    }
+
+    public function testAMultiFieldValidationProblemFillsTheErrorsMap(): void
+    {
+        $problem = file_get_contents(__DIR__ . '/../fixtures/conformance/problems/validation_failed.multiple.json');
+        $this->assertIsString($problem);
+        $this->queue(422, $problem, 'application/problem+json');
+        $client = new Klaracase(token: 'x', maxRetries: 0, baseUrl: 'https://example.invalid/api/v1', httpClient: $this->mock, requestFactory: $this->factory, streamFactory: $this->factory);
+
         try {
-            $this->client()->citationCheckDocuments->upload(42, 'a.pdf', 'application/pdf');
+            $client->decisions->search('Untreue', limit: 5);
             $this->fail('expected an exception');
         } catch (ValidationException $e) {
-            $this->assertSame('client_validation', $e->errorCode);
-            $this->assertCount(0, $this->mock->getRequests());
+            $this->assertSame(['The date to field must be a date after or equal to date from.'], $e->errors['date_to']);
+            $this->assertSame(['The limit field must be an integer.'], $e->errors['limit']);
         }
     }
 
