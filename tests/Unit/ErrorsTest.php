@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Klaracase\Tests\Unit;
 
+use Klaracase\Enum\InsufficientCreditsReason;
 use Klaracase\Exception\ApiException;
 use Klaracase\Exception\ConfigurationException;
 use Klaracase\Exception\InsufficientCreditsException;
@@ -13,6 +14,7 @@ use Klaracase\Exception\NotFoundException;
 use Klaracase\Exception\RateLimitException;
 use Klaracase\Exception\ServiceUnavailableException;
 use Klaracase\Exception\TransportException;
+use Klaracase\Testing\Fixtures;
 use Klaracase\Tests\Support\NetworkFailure;
 use Klaracase\Tests\Support\UsesMockClient;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -64,6 +66,51 @@ final class ErrorsTest extends TestCase
         $this->assertInstanceOf(NotFoundException::class, $error);
         $this->assertSame('BauGB', $error->successor);
         $this->assertNull($error->candidates);
+    }
+
+    public function testAnEmptyApiBudgetNamesTheReasonAndTheTopUpPageForAHumanAdmin(): void
+    {
+        $error = $this->failure(402, $this->problem('insufficient_credits.api_budget_empty'));
+
+        $this->assertInstanceOf(InsufficientCreditsException::class, $error);
+        $this->assertSame('insufficient_credits', $error->errorCode);
+        $this->assertSame(1, $error->cost);
+        $this->assertSame(0, $error->balance);
+        $this->assertSame('api_budget_empty', $error->reason);
+        $this->assertSame(InsufficientCreditsReason::ApiBudgetEmpty, $error->reasonEnum());
+        $this->assertSame('https://klaracase.de/org/billing/api-budget', $error->topUpUrl);
+        $this->assertSame('api_budget_empty', $error->extra['reason'], 'the raw members stay in extra');
+        $this->assertFalse($error->isRetryable());
+    }
+
+    public function testAnApiBudgetThatIsNotAvailableHasNoTopUpPage(): void
+    {
+        $error = $this->failure(402, $this->problem('insufficient_credits.api_budget_not_available'));
+
+        $this->assertInstanceOf(InsufficientCreditsException::class, $error);
+        $this->assertSame(InsufficientCreditsReason::ApiBudgetNotAvailable, $error->reasonEnum());
+        $this->assertNull($error->topUpUrl);
+    }
+
+    public function testAnInsufficientCreditsProblemFromBeforeTheBudgetHasNeitherReasonNorTopUpPage(): void
+    {
+        $error = $this->failure(402, $this->problem('insufficient_credits'));
+
+        $this->assertInstanceOf(InsufficientCreditsException::class, $error);
+        $this->assertNull($error->reason);
+        $this->assertNull($error->reasonEnum());
+        $this->assertNull($error->topUpUrl);
+        $this->assertNotNull($error->cost);
+    }
+
+    public function testAReasonThisVersionDoesNotKnowIsKeptAsWrittenAndReadsAsUnknown(): void
+    {
+        $error = $this->failure(402, (string) json_encode(Fixtures::problem(402, 'insufficient_credits', ['cost' => 2, 'balance' => 1, 'reason' => 'something_new'])));
+
+        $this->assertInstanceOf(InsufficientCreditsException::class, $error);
+        $this->assertSame('something_new', $error->reason);
+        $this->assertSame(InsufficientCreditsReason::Unknown, $error->reasonEnum());
+        $this->assertSame(InsufficientCreditsReason::PlanCreditsExhausted, InsufficientCreditsReason::fromWire('plan_credits_exhausted'));
     }
 
     public function testAVolumeCapCarriesUnitCapAndResetAndIsNotRetryable(): void
