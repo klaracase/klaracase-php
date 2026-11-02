@@ -41,7 +41,7 @@
     "reason": "no_lay_term",
     "note": "Nothing was added to your query: it was retrieved exactly as you typed it. …"
   },
-  "api_version": "0.95.0",
+  "api_version": "0.96.0",
   "changelog_url": "https://klaracase.de/docs/mcp/changelog",
   "credits": {
     "metered": true,

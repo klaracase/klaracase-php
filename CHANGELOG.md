@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reserved `plan_credits_exhausted`), `reasonEnum()` with the new `InsufficientCreditsReason` enum (it has an `Unknown`
   case), and `$topUpUrl`. The URL is for a human organization admin. A program or an AI agent must never open it, and
   this client never does. The class is no longer `final`.
+- `InsufficientCreditsException::$apiBudget`, the optional `api_budget` member of the 402 problem as an `ApiBudget`, or
+  `null` when the problem has none.
 - `TokenLimitReachedException` for the 402 `token_limit_reached`: the credit limit of one API key is used up. It extends
   `InsufficientCreditsException`, so an existing catch still sees it, but `cost` and `balance` are `null`. It reads
   `unit`, `cap`, `spent`, `resetsAt` (raw string) and `resetsAtDateTime` (`DateTimeImmutable`), and `settingsUrl`, which

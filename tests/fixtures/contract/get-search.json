@@ -89,7 +89,7 @@
   },
   "frequently_cited_by_results": [],
   "norms_cited_by_decision_results": [],
-  "api_version": "0.95.0",
+  "api_version": "0.96.0",
   "changelog_url": "https://klaracase.de/docs/mcp/changelog",
   "credits": {
     "metered": true,

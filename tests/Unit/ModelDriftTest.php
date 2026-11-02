@@ -60,13 +60,6 @@ final class ModelDriftTest extends TestCase
         'get-search' => SearchResult::class,
     ];
 
-    /**
-     * CONTRACT.md still shows the verdict `verified` in its citation check examples (spec 0.95.0). The live
-     * vocabulary is `verified_corpus`, which is what the examples folder and the server say. Only this value,
-     * only in the CONTRACT.md blocks, is excused.
-     */
-    private const STALE_CONTRACT_VALUES = ['"verified"'];
-
     /** The conformance body that carries keys on purpose. */
     private const DELIBERATE_FUTURE_KEYS = 'decisions.search.future_key';
 
@@ -143,15 +136,9 @@ final class ModelDriftTest extends TestCase
     #[DataProvider('goldenBodies')]
     public function testEveryEnumValueOfAGoldenBodyIsACase(string $class, string $body, string $source): void
     {
-        $fromContract = $source === 'contract';
         $model = $class::fromArray(Json::array(json_decode($body, true, 512, JSON_THROW_ON_ERROR)));
 
-        $unknown = array_filter(
-            DriftGuard::unknownEnumValues($model),
-            static fn (string $line): bool => ! in_array(substr($line, (int) strrpos($line, ' = ') + 3), self::STALE_CONTRACT_VALUES, true) || ! $fromContract,
-        );
-
-        $this->assertSame([], array_values($unknown));
+        $this->assertSame([], DriftGuard::unknownEnumValues($model));
     }
 
     public function testTheDeliberateFutureKeysStayInExtraAtEveryDepth(): void

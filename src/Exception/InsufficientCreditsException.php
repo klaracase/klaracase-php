@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Klaracase\Exception;
 
 use Klaracase\Enum\InsufficientCreditsReason;
+use Klaracase\Response\ApiBudget;
 use Throwable;
 
 /**
@@ -35,6 +36,13 @@ class InsufficientCreditsException extends KlaracaseException
     public readonly ?string $topUpUrl;
 
     /**
+     * The prepaid API budget as it stands, the same object as `credits.api_budget` on an answer (API 0.96.0). The API
+     * serves it only while the API budget is available and the organization holds a budget or may load one. Null when
+     * the problem has no `api_budget` object.
+     */
+    public readonly ?ApiBudget $apiBudget;
+
+    /**
      * @param array<string, mixed> $extra
      * @param array<string, list<string>> $headers
      * @param array<string, mixed> $body
@@ -58,6 +66,7 @@ class InsufficientCreditsException extends KlaracaseException
         $this->balance = is_int($extra['balance'] ?? null) ? $extra['balance'] : null;
         $this->reason = is_string($extra['reason'] ?? null) ? $extra['reason'] : null;
         $this->topUpUrl = is_string($extra['top_up_url'] ?? null) ? $extra['top_up_url'] : null;
+        $this->apiBudget = is_array($extra['api_budget'] ?? null) ? ApiBudget::fromArray($extra['api_budget']) : null;
     }
 
     /**

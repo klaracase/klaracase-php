@@ -58,7 +58,7 @@
   "truncated": false,
   "payload_truncated": false,
   "assembled_at": "2026-10-01T10:00:00+00:00",
-  "api_version": "0.95.0",
+  "api_version": "0.96.0",
   "changelog_url": "https://klaracase.de/docs/mcp/changelog",
   "credits": {
     "metered": true,

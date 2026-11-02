@@ -53,7 +53,7 @@
     "decisions_citing_url": "/api/v1/decisions/search?cited_norm=%C2%A7%20535%20BGB",
     "self_url": "/api/v1/norms/%C2%A7%20535%20BGB"
   },
-  "api_version": "0.95.0",
+  "api_version": "0.96.0",
   "changelog_url": "https://klaracase.de/docs/mcp/changelog",
   "credits": {
     "metered": true,

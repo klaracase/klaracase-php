@@ -20,7 +20,7 @@
   "value_limit": 500,
   "count_basis": "indexed_passages",
   "as_of": "2026-10-01T09:40:00+00:00",
-  "api_version": "0.95.0",
+  "api_version": "0.96.0",
   "changelog_url": "https://klaracase.de/docs/mcp/changelog",
   "credits": {
     "metered": true,

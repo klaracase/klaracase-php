@@ -115,6 +115,29 @@ final class ErrorsTest extends TestCase
         $this->assertSame(InsufficientCreditsReason::PlanCreditsExhausted, InsufficientCreditsReason::fromWire('plan_credits_exhausted'));
     }
 
+    public function testTheApiBudgetOfTheProblemIsReadWhenThereIsOne(): void
+    {
+        $budget = ['cents' => 0, 'rate_cents_per_credit' => 25, 'credits_at_rate' => 0];
+        $error = $this->failure(402, (string) json_encode(Fixtures::problem(402, 'insufficient_credits', ['cost' => 1, 'balance' => 0, 'reason' => 'api_budget_empty', 'api_budget' => $budget])));
+
+        $this->assertInstanceOf(InsufficientCreditsException::class, $error);
+        $this->assertSame(0, $error->apiBudget?->cents);
+        $this->assertSame(25, $error->apiBudget->rate_cents_per_credit);
+        $this->assertSame(0, $error->apiBudget->credits_at_rate);
+        $this->assertSame($budget, $error->extra['api_budget'], 'the raw member stays in extra');
+    }
+
+    public function testWithoutAnApiBudgetObjectTheAccessorIsNull(): void
+    {
+        $plain = $this->failure(402, $this->problem('insufficient_credits.api_budget_empty'));
+        $this->assertInstanceOf(InsufficientCreditsException::class, $plain);
+        $this->assertNull($plain->apiBudget);
+
+        $wrong = $this->failure(402, (string) json_encode(Fixtures::problem(402, 'insufficient_credits', ['cost' => 1, 'balance' => 0, 'api_budget' => 'free'])));
+        $this->assertInstanceOf(InsufficientCreditsException::class, $wrong);
+        $this->assertNull($wrong->apiBudget);
+    }
+
     public function testAKeyLimitIsAnInsufficientCreditsExceptionWithoutCostAndBalance(): void
     {
         $error = $this->failure(402, $this->problem('token_limit_reached'));

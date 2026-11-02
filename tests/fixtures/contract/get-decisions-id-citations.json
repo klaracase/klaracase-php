@@ -71,7 +71,7 @@
   },
   "fortgeltung_checked": false,
   "fortgeltung_note": "Rechtskraft/Fortgeltung (whether a decision is still good law) is NOT checked. A decision returned here may have been quashed or superseded on appeal, and the ABSENCE of any such note is not evidence that it still stands.",
-  "api_version": "0.95.0",
+  "api_version": "0.96.0",
   "changelog_url": "https://klaracase.de/docs/mcp/changelog",
   "credits": {
     "metered": true,
